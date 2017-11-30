@@ -19,6 +19,12 @@ import (
 	"strings"
 	"math/rand"
 	"github.com/pborman/getopt"
+
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"io/ioutil"
+	"strconv"
 	// There will likely be several mode APIs you need
 )
 
@@ -36,6 +42,7 @@ type wallet struct {
 	filename string
 	masterPassword []byte   // Should be exactly 32 bytes with zero right padding
 	passwords []walletEntry
+	genNum int 
 }
 
 // Global data
@@ -91,6 +98,10 @@ func createWallet(filename string) *wallet {
 	var wal443 wallet 
 	wal443.filename = filename
 	wal443.masterPassword = make([]byte, 32, 32) // You need to take it from here
+	wal443.genNum = 1
+
+	//temp
+	wal443.masterPassword = []byte("12345")
 
 	// Return the wall
 	return &wal443
@@ -124,7 +135,27 @@ func loadWallet(filename string) *wallet {
 
 func (wal443 wallet) saveWallet() bool {
 
-	// Setup the wallet
+	// Setup the wallet in the correct form
+	//then save to txt file 
+	//wallet form 
+
+	data := time.Now().Format("2006-01-02 15:04:05") + "||"+ strconv.Itoa(wal443.genNum) + "\n"
+	//for all pwd in wallet.passwords[] append to data entry  32 salt 16 password 16 commetn 128 ; passwords base64 encoded
+	data2 := hmac.New(sha256.New, wal443.masterPassword) 
+
+
+	//base64 encoding 
+	data2.Write([]byte(data)); 
+	encoder := base64.NewEncoder(base64.StdEncoding, os.Stdout)
+	encoder.Write([]byte(data2))
+	encoder.Close()
+
+	//join data and data2 
+	
+	//write to file 
+
+
+	ioutil.WriteFile(wal443.filename+".txt", []byte(data2), 0644)
 
 	// Return successfully
 	return true
