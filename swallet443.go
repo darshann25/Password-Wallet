@@ -47,14 +47,16 @@ type wallet struct {
 }
 
 // Global data
-var usageText string = `USAGE: swallet443 [-h] [-v] <wallet-file> [create|add|del|show|chpw|reset|list]
+var usageText string = `USAGE: swallet443 [-h] [-v] <wallet-file> [create|add|del|show|chpw|reset|list] <password> <comment>
 
 where:
     -h - help mode (display this message)
     -v - enable verbose output
 
     <wallet-file> - wallet file to manage
-    [create|add|del|show|chpw] - is a command to execute, where
+	[create|add|del|show|chpw] - is a command to execute, where
+	<password> - password to be added or removed
+	<comment> - comment associated with a password
 
      create - create a new wallet file
      add - adds a password to the wallet
@@ -67,6 +69,9 @@ where:
 var verbose bool = true
 
 // You may want to create more global variables
+var PASSWORD_BYTE_SIZE int = 32
+var COMMENT_BYTE_SIZE int = 128
+var SALT_BYTE_SIZE int = 16
 
 //
 // Functions
@@ -122,8 +127,8 @@ func loadWallet(filename string) *wallet {
 	var wal443 wallet 
 	// DO THE LOADING HERE
 
-	// Return the wall
-	return &wal443
+	// Return the wall	
+	return &wal443	
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -182,12 +187,13 @@ func (wal443 wallet) saveWallet() bool {
 //                command - the command to execute
 // Outputs      : true if successful test, false if failure
 
-func (wal443 wallet) processWalletCommand(command string) bool {
+func (wal443 wallet) processWalletCommand(command string, password string, comment string) bool {
 
 	// Process the command 
 	switch command {
 	case "add":
-		// DO SOMETHING HERE, e.g., wal443.addPassword(...)
+		wal443.addPassword(password, comment)
+		break
 
 	case "del":
 		// DO SOMETHING HERE
@@ -212,6 +218,42 @@ func (wal443 wallet) processWalletCommand(command string) bool {
 
 	// Return sucessfull
 	return true
+}
+
+func (wal443 wallet) addPassword(password string, comment string) {
+	
+	var wallEntry walletEntry
+	buff := bytes.NewBuffer([]byte(password))
+	
+	// Password
+	if buff.Len() < PASSWORD_BYTE_SIZE { 
+		padding := PASSWORD_BYTE_SIZE - buff.Len()
+		for i := 0; i < padding ; i++ {
+			_, err := buff.WriteString("\x00")
+			check(err)
+		} 
+	}
+	wallEntry.password = buff.Bytes()
+
+	// Comment
+	buff = bytes.NewBuffer([]byte(comment))
+	if buff.Len() < COMMENT_BYTE_SIZE { 
+		padding := COMMENT_BYTE_SIZE - buff.Len()
+		for i := 0; i < padding ; i++ {
+			_, err := buff.WriteString("\x00")
+			check(err)
+		} 
+	}
+	wallEntry.comment = buff.Bytes()
+	
+	// Salt
+	saltBytes := make([]byte, SALT_BYTE_SIZE)
+    if _, err := rand.Read(saltBytes); err != nil {
+        panic(err)
+	}
+	//s := fmt.Sprintf("%X", saltBytes)
+	wallEntry.salt = saltBytes
+	
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -254,10 +296,16 @@ func main() {
 		getopt.Usage()
 		os.Exit(-1)
 	}
-	fmt.Printf("wallet file [%t]\n", getopt.Arg(0))
+	fmt.Printf("wallet file [%s]\n", getopt.Arg(0))
 	filename := getopt.Arg(0)
-	fmt.Printf("command [%t]\n", getopt.Arg(1))
+	fmt.Printf("command [%s]\n", getopt.Arg(1))
 	command := strings.ToLower(getopt.Arg(1))
+
+	fmt.Printf("password [%s]\n", getopt.Arg(2))
+	password := strings.ToLower(getopt.Arg(2))
+
+	fmt.Printf("comment [%s]\n", getopt.Arg(3))
+	comment := getopt.Arg(3)
 
 	// Now check if we are creating a wallet
 	if command == "create" {
@@ -272,8 +320,8 @@ func main() {
 
 		// Load the wallet, then process the command
 		wal443 := loadWallet(filename)
-		if wal443 != nil && wal443.processWalletCommand(command) {
-			wal443.saveWallet()
+		if wal443 != nil && wal443.processWalletCommand(command, password, comment) {
+			// wal443.saveWallet()
 		}
 
 	}
