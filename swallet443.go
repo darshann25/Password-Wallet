@@ -166,12 +166,7 @@ func (wal443 wallet) saveWallet() bool {
 
 	for index, walEntry := range wal443.passwords {
 		
-		entryString := "Entry " + strconv.Itoa(index + 1)
-		buff := bytes.NewBuffer([]byte(entryString))
-		if buff.Len() > ENTRY_BYTE_SIZE { buff.Truncate(ENTRY_BYTE_SIZE) }
-		entryString = buff.String()
-
-		// Password
+		// Entry : PADDING IS INCONSISTENT WITH SCHEMA
 		/*
 		entryBytes := []byte("Entry " + strconv.Itoa(index + 1))
 		buff := bytes.NewBuffer(entryBytes)		
@@ -186,7 +181,12 @@ func (wal443 wallet) saveWallet() bool {
 			entryString = truncateStringToBytes(entryBytes, ENTRY_BYTE_SIZE)
 		}
 		*/
-		
+		entryString := "Entry " + strconv.Itoa(index + 1)
+		buff := bytes.NewBuffer([]byte(entryString))
+		if buff.Len() > ENTRY_BYTE_SIZE { buff.Truncate(ENTRY_BYTE_SIZE) }
+		entryString = buff.String()
+
+
 		// AES Encryption
 		// aesPassword := encrpyt(string(walEntry.salt) + "||" + string(walEntry.password))
 		aesPassword := string(walEntry.salt) + "||" + string(walEntry.password)
@@ -283,7 +283,7 @@ func (wal443 wallet) addPassword(password string, comment string) wallet{
 	}
 	walEntry.password = buff.Bytes()
 
-	// Comment
+	// Comment : PADDING IS INCONSISTENT WITH SCHEMA
 	/*
 	buff = bytes.NewBuffer([]byte(comment))
 	if buff.Len() < COMMENT_BYTE_SIZE { 
