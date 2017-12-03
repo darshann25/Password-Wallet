@@ -19,9 +19,10 @@ import (
 	"strings"
 	"math/rand"
 	"github.com/pborman/getopt"
-
-	"crypto/hmac"
-	"crypto/sha256"
+	"bytes"
+	//"crypto/hmac"
+	//"crypto/sha256"
+	"crypto/sha1"
 	"encoding/base64"
 	"io/ioutil"
 	"strconv"
@@ -140,14 +141,25 @@ func (wal443 wallet) saveWallet() bool {
 	//wallet form 
 
 	data := time.Now().Format("2006-01-02 15:04:05") + "||"+ strconv.Itoa(wal443.genNum) + "\n"
+	err := ioutil.WriteFile(wal443.filename + ".txt", []byte(data), 0644)
+	check(err)
+	
 	//for all pwd in wallet.passwords[] append to data entry  32 salt 16 password 16 commetn 128 ; passwords base64 encoded
-	data2 := hmac.New(sha256.New, wal443.masterPassword) 
+	truncMastPassword := truncateStringToBytes(wal443.masterPassword, 16)
+	walletKey := getSHA1Hash(truncMastPassword)
+	fmt.Println(walletKey)
+	fmt.Printf("%x\n", walletKey)
+
+
+
+	
+	// masterKey := hmac.New(sha256.New, truncMastPassword) 
 
 
 	//base64 encoding 
-	data2.Write([]byte(data)); 
+	// data2.Write([]byte(data)); 
 	encoder := base64.NewEncoder(base64.StdEncoding, os.Stdout)
-	encoder.Write([]byte(data2))
+	// encoder.Write([]byte(masterKey))
 	encoder.Close()
 
 	//join data and data2 
@@ -155,7 +167,7 @@ func (wal443 wallet) saveWallet() bool {
 	//write to file 
 
 
-	ioutil.WriteFile(wal443.filename+".txt", []byte(data2), 0644)
+	// ioutil.WriteFile(wal443.filename+".txt", []byte(data2), 0644)
 
 	// Return successfully
 	return true
@@ -268,4 +280,29 @@ func main() {
 
 	// Return (no return code)
 	return
+}
+
+func check(e error) {
+    if e != nil {
+        panic(e)
+    }
+}
+
+func truncateStringToBytes(data []byte, numBytes int) string {
+	
+	buff := bytes.NewBuffer([]byte(data))
+	if buff.Len() > numBytes { buff.Truncate(numBytes) }// keep first numBytes and discard the rest
+	return buff.String()
+	
+}
+
+func getSHA1Hash(data string) []byte {
+	hasher := sha1.New()
+	hasher.Write([]byte(data))
+	result := hasher.Sum(nil)
+
+	fmt.Println(data)
+	fmt.Printf("%x\n", result)
+
+	return result
 }
