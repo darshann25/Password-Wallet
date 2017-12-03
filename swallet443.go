@@ -24,7 +24,7 @@ import (
 	//"crypto/sha256"
 	"crypto/sha1"
 	"encoding/base64"
-	"io/ioutil"
+	// "io/ioutil"
 	"strconv"
 	// There will likely be several mode APIs you need
 )
@@ -36,7 +36,7 @@ type walletEntry struct {
 	password []byte    // Should be exactly 32 bytes with zero right padding
 	salt []byte        // Should be exactly 16 bytes 
 	comment []byte     // Should be exactly 128 bytes with zero right padding
-}
+}					   // Comment cannot be null padded. Inconsistent with schema
 
 // The wallet as a whole
 type wallet struct {
@@ -72,6 +72,7 @@ var verbose bool = true
 var PASSWORD_BYTE_SIZE int = 32
 var COMMENT_BYTE_SIZE int = 128
 var SALT_BYTE_SIZE int = 16
+var ENTRY_BYTE_SIZE int = 32
 
 //
 // Functions
@@ -126,6 +127,7 @@ func loadWallet(filename string) *wallet {
 	// Setup the wallet
 	var wal443 wallet 
 	// DO THE LOADING HERE
+	wal443.filename = filename
 
 	// Return the wall	
 	return &wal443	
@@ -145,21 +147,64 @@ func (wal443 wallet) saveWallet() bool {
 	//then save to txt file 
 	//wallet form 
 
-	data := time.Now().Format("2006-01-02 15:04:05") + "||"+ strconv.Itoa(wal443.genNum) + "\n"
-	err := ioutil.WriteFile(wal443.filename + ".txt", []byte(data), 0644)
+	wal443.genNum++
+	data := time.Now().Format("2006-01-02 15:04:05") + "\x7c" + strconv.Itoa(wal443.genNum) + "\n"
+	//err := ioutil.WriteFile(wal443.filename + ".txt", []byte(data), 0644)
+	file, err := os.Create(wal443.filename + ".txt")
+    check(err)
+	
+	defer file.Close()
+
+	_, err = file.WriteString(data)
 	check(err)
-	
+
 	//for all pwd in wallet.passwords[] append to data entry  32 salt 16 password 16 commetn 128 ; passwords base64 encoded
-	truncMastPassword := truncateStringToBytes(wal443.masterPassword, 16)
-	walletKey := getSHA1Hash(truncMastPassword)
-	fmt.Println(walletKey)
-	fmt.Printf("%x\n", walletKey)
+	//truncMastPassword := truncateStringToBytes(wal443.masterPassword, 16)
+	//walletKey := getSHA1Hash(truncMastPassword)
+	//fmt.Println(walletKey)
+	// fmt.Printf("%x\n", walletKey)
 
+	for index, walEntry := range wal443.passwords {
+		
+		entryString := "Entry " + strconv.Itoa(index + 1)
+		buff := bytes.NewBuffer([]byte(entryString))
+		if buff.Len() > ENTRY_BYTE_SIZE { buff.Truncate(ENTRY_BYTE_SIZE) }
+		entryString = buff.String()
+
+		// Password
+		/*
+		entryBytes := []byte("Entry " + strconv.Itoa(index + 1))
+		buff := bytes.NewBuffer(entryBytes)		
+		if buff.Len() < ENTRY_BYTE_SIZE { 
+			padding := ENTRY_BYTE_SIZE - buff.Len()
+			for i := 0; i < padding ; i++ {
+				_, err := buff.WriteString("\x00")
+				check(err)
+			} 
+			entryString = buff.String()
+		} else {
+			entryString = truncateStringToBytes(entryBytes, ENTRY_BYTE_SIZE)
+		}
+		*/
+		
+		// AES Encryption
+		// aesPassword := encrpyt(string(walEntry.salt) + "||" + string(walEntry.password))
+		aesPassword := string(walEntry.salt) + "||" + string(walEntry.password)
+		aesBase64Password := base64.StdEncoding.EncodeToString([]byte(aesPassword))
+
+		data = entryString + "||" + aesBase64Password + "||" + string(walEntry.comment) + "\n"
+		fmt.Println(data)
+
+		_, err = file.WriteString(data)
+		check(err)
+	}
+
+	file.Sync()
 	
 
 
 
-	
+
 	// masterKey := hmac.New(sha256.New, truncMastPassword) 
 
 
@@ -189,16 +234,17 @@ func (wal443 wallet) saveWallet() bool {
 //                command - the command to execute
 // Outputs      : true if successful test, false if failure
 
-func (wal443 wallet) processWalletCommand(command string, password string, comment string) bool {
+func (wal443 wallet) processWalletCommand(command string, password string, comment string) (bool, wallet) {
 
 	// Process the command 
 	switch command {
 	case "add":
-		wal443.addPassword(password, comment)
+		wal443 = wal443.addPassword(password, comment)
 		break
 
 	case "del":
 		wal443.deletePassword(password)
+		break
 		
 	case "show":
 		// DO SOMETHING HERE
@@ -215,14 +261,14 @@ func (wal443 wallet) processWalletCommand(command string, password string, comme
 	default:
 		// Handle error, return failure
 		fmt.Fprintf(os.Stderr, "Bad/unknown command for wallet [%s], aborting.\n", command)
-		return false
+		return false, wal443
 	}
 
 	// Return sucessfull
-	return true
+	return true, wal443
 }
 
-func (wal443 wallet) addPassword(password string, comment string) {
+func (wal443 wallet) addPassword(password string, comment string) wallet{
 	
 	var walEntry walletEntry
 	buff := bytes.NewBuffer([]byte(password))
@@ -238,6 +284,7 @@ func (wal443 wallet) addPassword(password string, comment string) {
 	walEntry.password = buff.Bytes()
 
 	// Comment
+	/*
 	buff = bytes.NewBuffer([]byte(comment))
 	if buff.Len() < COMMENT_BYTE_SIZE { 
 		padding := COMMENT_BYTE_SIZE - buff.Len()
@@ -245,7 +292,9 @@ func (wal443 wallet) addPassword(password string, comment string) {
 			_, err := buff.WriteString("\x00")
 			check(err)
 		} 
-	}
+	}*/
+	buff = bytes.NewBuffer([]byte(comment))
+	if buff.Len() > COMMENT_BYTE_SIZE { buff.Truncate(COMMENT_BYTE_SIZE) }
 	walEntry.comment = buff.Bytes()
 	
 	// Salt
@@ -253,11 +302,12 @@ func (wal443 wallet) addPassword(password string, comment string) {
     if _, err := rand.Read(saltBytes); err != nil {
         panic(err)
 	}
-	//s := fmt.Sprintf("%X", saltBytes)
+	// s := fmt.Sprintf("%X", saltBytes)
 	walEntry.salt = saltBytes
 	
 	// Add wallEntry to Passwords
 	wal443.passwords = append(wal443.passwords, walEntry)
+	return wal443
 }
 
 func (wal443 wallet) deletePassword(password string) {
@@ -346,8 +396,10 @@ func main() {
 
 		// Load the wallet, then process the command
 		wal443 := loadWallet(filename)
-		if wal443 != nil && wal443.processWalletCommand(command, password, comment) {
-			// wal443.saveWallet()
+		var ok bool
+		ok, *wal443 = wal443.processWalletCommand(command, password, comment)
+		if wal443 != nil && ok {
+			wal443.saveWallet()
 		}
 
 	}
