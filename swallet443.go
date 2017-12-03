@@ -104,7 +104,7 @@ func createWallet(filename string) *wallet {
 	var wal443 wallet 
 	wal443.filename = filename
 	wal443.masterPassword = make([]byte, 32, 32) // You need to take it from here
-	wal443.genNum = 1
+	wal443.genNum = 0
 
 	//temp
 	wal443.masterPassword = []byte("12345")
@@ -155,6 +155,8 @@ func (wal443 wallet) saveWallet() bool {
 	fmt.Println(walletKey)
 	fmt.Printf("%x\n", walletKey)
 
+	
+
 
 
 	
@@ -196,7 +198,7 @@ func (wal443 wallet) processWalletCommand(command string, password string, comme
 		break
 
 	case "del":
-		// DO SOMETHING HERE
+		wal443.deletePassword(password)
 		
 	case "show":
 		// DO SOMETHING HERE
@@ -222,7 +224,7 @@ func (wal443 wallet) processWalletCommand(command string, password string, comme
 
 func (wal443 wallet) addPassword(password string, comment string) {
 	
-	var wallEntry walletEntry
+	var walEntry walletEntry
 	buff := bytes.NewBuffer([]byte(password))
 	
 	// Password
@@ -233,7 +235,7 @@ func (wal443 wallet) addPassword(password string, comment string) {
 			check(err)
 		} 
 	}
-	wallEntry.password = buff.Bytes()
+	walEntry.password = buff.Bytes()
 
 	// Comment
 	buff = bytes.NewBuffer([]byte(comment))
@@ -244,7 +246,7 @@ func (wal443 wallet) addPassword(password string, comment string) {
 			check(err)
 		} 
 	}
-	wallEntry.comment = buff.Bytes()
+	walEntry.comment = buff.Bytes()
 	
 	// Salt
 	saltBytes := make([]byte, SALT_BYTE_SIZE)
@@ -252,10 +254,34 @@ func (wal443 wallet) addPassword(password string, comment string) {
         panic(err)
 	}
 	//s := fmt.Sprintf("%X", saltBytes)
-	wallEntry.salt = saltBytes
+	walEntry.salt = saltBytes
 	
+	// Add wallEntry to Passwords
+	wal443.passwords = append(wal443.passwords, walEntry)
 }
 
+func (wal443 wallet) deletePassword(password string) {
+	
+	buff := bytes.NewBuffer([]byte(password))
+	
+	// Password
+	if buff.Len() < PASSWORD_BYTE_SIZE { 
+		padding := PASSWORD_BYTE_SIZE - buff.Len()
+		for i := 0; i < padding ; i++ {
+			_, err := buff.WriteString("\x00")
+			check(err)
+		} 
+	}
+	delPassword := buff.Bytes()
+
+	// remove walletEntry associated with password
+	for index, walEntry := range wal443.passwords {
+		if bytes.Equal(walEntry.password, delPassword) {
+			wal443.passwords = append(wal443.passwords[:index], wal443.passwords[index + 1 :]...)
+			break
+		}
+	}
+}
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Function     : main
