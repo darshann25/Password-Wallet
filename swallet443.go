@@ -20,14 +20,19 @@ import (
 	"math/rand"
 	"github.com/pborman/getopt"
 	"bytes"
-	//"crypto/hmac"
-	//"crypto/sha256"
+	"crypto/hmac"
+	"crypto/sha256"
 	"crypto/sha1"
+	"crypto/aes"
+	"crypto/cipher"
 	"encoding/base64"
-	// "io/ioutil"
+	"io"
+	"io/ioutil"
 	"strconv"
+	
 	// There will likely be several mode APIs you need
 )
+import crand "crypto/rand"
 
 // Type definition  ** YOU WILL NEED TO ADD TO THESE **
 
@@ -69,10 +74,10 @@ where:
 var verbose bool = true
 
 // You may want to create more global variables
-var PASSWORD_BYTE_SIZE int = 32
-var COMMENT_BYTE_SIZE int = 128
-var SALT_BYTE_SIZE int = 16
-var ENTRY_BYTE_SIZE int = 32
+const PASSWORD_BYTE_SIZE int = 32
+const COMMENT_BYTE_SIZE int = 128
+const SALT_BYTE_SIZE int = 16
+const ENTRY_BYTE_SIZE int = 32
 
 //
 // Functions
@@ -143,27 +148,13 @@ func loadWallet(filename string) *wallet {
 
 func (wal443 wallet) saveWallet() bool {
 
-	// Setup the wallet in the correct form
-	//then save to txt file 
-	//wallet form 
-
 	wal443.genNum++
 	data := time.Now().Format("2006-01-02 15:04:05") + "\x7c" + strconv.Itoa(wal443.genNum) + "\n"
-	//err := ioutil.WriteFile(wal443.filename + ".txt", []byte(data), 0644)
-	file, err := os.Create(wal443.filename + ".txt")
-    check(err)
+	buffer := bytes.NewBuffer([]byte(data))
 	
-	defer file.Close()
-
-	_, err = file.WriteString(data)
-	check(err)
-
-	//for all pwd in wallet.passwords[] append to data entry  32 salt 16 password 16 commetn 128 ; passwords base64 encoded
-	//truncMastPassword := truncateStringToBytes(wal443.masterPassword, 16)
-	//walletKey := getSHA1Hash(truncMastPassword)
-	//fmt.Println(walletKey)
-	// fmt.Printf("%x\n", walletKey)
-
+	hashedPassword := getSHA1Hash(wal443.masterPassword)
+	walletKey := truncateStringToBytes(hashedPassword, 16)
+	
 	for index, walEntry := range wal443.passwords {
 		
 		// Entry : PADDING IS INCONSISTENT WITH SCHEMA
@@ -188,38 +179,24 @@ func (wal443 wallet) saveWallet() bool {
 
 
 		// AES Encryption
-		// aesPassword := encrpyt(string(walEntry.salt) + "||" + string(walEntry.password))
-		aesPassword := string(walEntry.salt) + "||" + string(walEntry.password)
-		aesBase64Password := base64.StdEncoding.EncodeToString([]byte(aesPassword))
+		aesPassword, pass_err := aes_encrypt(walletKey, string(walEntry.salt) + "||" + string(walEntry.password))
+		check(pass_err)
+		// aesPassword := string(walEntry.salt) + "||" + string(walEntry.password)
+		// aesBase64Password := base64.URLEncoding.EncodeToString([]byte(aesPassword))
 
-		data = entryString + "||" + aesBase64Password + "||" + string(walEntry.comment) + "\n"
+		data := entryString + "||" + aesPassword + "||" + string(walEntry.comment) + "\n"
 		fmt.Println(data)
 
-		_, err = file.WriteString(data)
+		_, err := buffer.WriteString(data)
 		check(err)
+		
 	}
 
-	file.Sync()
-	
-
-
-
-
-	// masterKey := hmac.New(sha256.New, truncMastPassword) 
-
-
-	//base64 encoding 
-	// data2.Write([]byte(data)); 
-	encoder := base64.NewEncoder(base64.StdEncoding, os.Stdout)
-	// encoder.Write([]byte(masterKey))
-	encoder.Close()
-
-	//join data and data2 
-	
-	//write to file 
-
-
-	// ioutil.WriteFile(wal443.filename+".txt", []byte(data2), 0644)
+	hmac := createMAC(buffer.Bytes(), walletKey)
+	hmacString := base64.URLEncoding.EncodeToString(hmac)
+	buffer.WriteString(hmacString + "\n")
+	err := ioutil.WriteFile(wal443.filename + ".txt", buffer.Bytes(), 0644)
+	check(err)
 
 	// Return successfully
 	return true
@@ -414,21 +391,69 @@ func check(e error) {
     }
 }
 
-func truncateStringToBytes(data []byte, numBytes int) string {
+func truncateStringToBytes(data []byte, numBytes int) []byte {
 	
 	buff := bytes.NewBuffer([]byte(data))
 	if buff.Len() > numBytes { buff.Truncate(numBytes) }// keep first numBytes and discard the rest
-	return buff.String()
+	
+	if buff.Len() < numBytes { 
+		padding := numBytes - buff.Len()
+		for i := 0; i < padding ; i++ {
+			_, err := buff.WriteString("\x00")
+			check(err)
+		} 
+	}
+	fmt.Printf("truncateStringToBytes : %d\n", buff.Len())
+	
+	return buff.Bytes()
 	
 }
 
-func getSHA1Hash(data string) []byte {
+func getSHA1Hash(data []byte) []byte {
 	hasher := sha1.New()
-	hasher.Write([]byte(data))
+	hasher.Write(data)
 	result := hasher.Sum(nil)
 
-	fmt.Println(data)
-	fmt.Printf("%x\n", result)
+	// fmt.Println(data)
+	// fmt.Printf("%x\n", result)
 
 	return result
+}
+
+// Reference - https://gist.github.com/mickelsonm/e1bf365a149f3fe59119
+func aes_encrypt(key []byte, message string) (result string, err error) {
+	plainText := []byte(message)
+
+	block, err := aes.NewCipher(key)
+	check(err)
+
+	//IV is a unique stream that is appended to the beginning of the ciphertext
+	cipherText := make([]byte, aes.BlockSize + len(plainText))
+	iv := cipherText[:aes.BlockSize]
+	if _, err = io.ReadFull(crand.Reader, iv); err != nil {
+		check(err)
+	}
+
+	stream := cipher.NewCFBEncrypter(block, iv)
+	stream.XORKeyStream(cipherText[aes.BlockSize:], plainText)
+
+	// returns base64 encoded string
+	result = base64.URLEncoding.EncodeToString(cipherText)
+	return
+}
+
+// Reference - https://golang.org/pkg/crypto/hmac/
+// CheckMAC reports whether messageMAC is a valid HMAC tag for message.
+func CheckMAC(message, messageMAC, key []byte) bool {
+	mac := hmac.New(sha256.New, key)
+	mac.Write(message)
+	expectedMAC := mac.Sum(nil)
+	return hmac.Equal(messageMAC, expectedMAC)
+}
+
+func createMAC(data, masterkey[] byte) (hMAC []byte) {
+	mac := hmac.New(sha256.New, masterkey)
+	mac.Write(data)
+	hMAC = mac.Sum(nil)
+	return
 }
