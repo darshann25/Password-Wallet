@@ -29,6 +29,7 @@ import (
 	"io"
 	"io/ioutil"
 	"strconv"
+	"errors"
 	
 	// There will likely be several mode APIs you need
 )
@@ -439,6 +440,30 @@ func aes_encrypt(key []byte, message string) (result string, err error) {
 
 	// returns base64 encoded string
 	result = base64.URLEncoding.EncodeToString(cipherText)
+	return
+}
+
+// Reference - https://gist.github.com/mickelsonm/e1bf365a149f3fe59119
+func aes_decrypt(key []byte, encmessage string) (result string, err error) {
+	cipherText, err := base64.URLEncoding.DecodeString(encmessage)
+	check(err)
+
+	block, err := aes.NewCipher(key)
+	check(err)
+
+	if len(cipherText) < aes.BlockSize {
+		err = errors.New("Ciphertext block size is too short")
+		check(err)
+	}
+
+	//IV is a unique stream that is appended to the beginning of the ciphertext
+	iv := cipherText[:aes.BlockSize]
+	cipherText = cipherText[aes.BlockSize:]
+
+	stream := cipher.NewCFBDecrypter(block, iv)
+	stream.XORKeyStream(cipherText, cipherText)
+
+	result = string(cipherText)
 	return
 }
 
