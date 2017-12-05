@@ -113,7 +113,7 @@ func createWallet(filename string) *wallet {
 	wal443.masterPassword = make([]byte, 32, 32) // You need to take it from here
 	wal443.genNum = 0
 
-	//temp
+	//temp - Needs UI
 	wal443.masterPassword = []byte("12345")
 
 	// Return the wall
@@ -135,6 +135,69 @@ func loadWallet(filename string) *wallet {
 	// DO THE LOADING HERE
 	wal443.filename = filename
 
+	// temp - Need UI
+	wal443.masterPassword = []byte("12345")
+
+	data, err := ioutil.ReadFile(wal443.filename + ".txt")
+	check(err)
+
+	lines := strings.Split(string(data), "\n")
+	numLines := len(lines) - 1
+	
+	buffer := bytes.NewBuffer([]byte(lines[0] + "\n"))
+
+	// check if masterPassword is correct by checking the HMAC
+	for i := 1; i < numLines - 1; i++ {
+		_, err := buffer.WriteString(lines[i] + "\n")
+		check(err)
+	}
+	hashedPassword := getSHA1Hash(wal443.masterPassword)
+	walletKey := truncateStringToBytes(hashedPassword, 16)
+
+	hmac, err := base64.URLEncoding.DecodeString(lines[numLines - 1])
+	check(err)
+	valid := checkMAC(buffer.Bytes(), hmac, walletKey)
+	
+	if(valid) {
+		genNumArr := strings.Split(lines[0], "||")
+		genNum, err := strconv.Atoi(genNumArr[1])
+		check(err)
+		wal443.genNum = genNum
+
+
+		for i := 1; i < numLines - 1; i++ {
+			line := lines[i]
+			_, err := buffer.WriteString(line)
+			check(err)
+
+			lineData := strings.Split(line, "||")
+			aes_saltyPassword := lineData[1]
+			comment := lineData[2]
+			
+			// initialize walletEntry
+			var walEntry walletEntry
+
+			// store comment
+			walEntry.comment = []byte(comment)
+
+			// decrypt saltyPassword
+			saltyPassword, err := aes_decrypt(walletKey, aes_saltyPassword)
+			check(err)
+
+			saltyPasswordArr := strings.Split(saltyPassword, "||")
+			walEntry.salt = []byte(saltyPasswordArr[0])
+			walEntry.password = []byte(saltyPasswordArr[1])
+
+			wal443.passwords = append(wal443.passwords, walEntry)
+
+		}
+	} else {
+
+		fmt.Println("INVALID MASTERPASSWORD ENTERED!")
+		os.Exit(-1)
+
+	}
+
 	// Return the wall	
 	return &wal443	
 }
@@ -147,10 +210,11 @@ func loadWallet(filename string) *wallet {
 // Inputs       : walletFile - the name of the wallet file
 // Outputs      : true if successful test, false if failure
 
-func (wal443 wallet) saveWallet() bool {
+func (wal443 wallet) saveWallet() (*wallet, bool) {
 
-	wal443.genNum++
-	data := time.Now().Format("2006-01-02 15:04:05") + "\x7c" + strconv.Itoa(wal443.genNum) + "\n"
+	wal443.genNum += 1
+
+	data := time.Now().Format("2006-01-02 15:04:05") + "||" + strconv.Itoa(wal443.genNum) + "\n"
 	buffer := bytes.NewBuffer([]byte(data))
 	
 	hashedPassword := getSHA1Hash(wal443.masterPassword)
@@ -186,7 +250,7 @@ func (wal443 wallet) saveWallet() bool {
 		// aesBase64Password := base64.URLEncoding.EncodeToString([]byte(aesPassword))
 
 		data := entryString + "||" + aesPassword + "||" + string(walEntry.comment) + "\n"
-		fmt.Println(data)
+		// fmt.Println(data)
 
 		_, err := buffer.WriteString(data)
 		check(err)
@@ -200,7 +264,7 @@ func (wal443 wallet) saveWallet() bool {
 	check(err)
 
 	// Return successfully
-	return true
+	return &wal443, true
 }
 func (wal443 wallet) showPassword() bool{
 
@@ -275,7 +339,7 @@ func (wal443 wallet) resetPassword() bool{
 //                command - the command to execute
 // Outputs      : true if successful test, false if failure
 
-func (wal443 wallet) processWalletCommand(command string, password string, comment string) (bool, wallet) {
+func (wal443 wallet) processWalletCommand(command string, password string, comment string) (*wallet, bool) {
 
 	// Process the command 
 	switch command {
@@ -284,7 +348,7 @@ func (wal443 wallet) processWalletCommand(command string, password string, comme
 		break
 
 	case "del":
-		wal443.deletePassword(password)
+		wal443 = wal443.deletePassword(password)
 		break
 		
 	case "show":
@@ -300,11 +364,11 @@ func (wal443 wallet) processWalletCommand(command string, password string, comme
 	default:
 		// Handle error, return failure
 		fmt.Fprintf(os.Stderr, "Bad/unknown command for wallet [%s], aborting.\n", command)
-		return false, wal443
+		return &wal443, false
 	}
 
 	// Return sucessfull
-	return true, wal443
+	return &wal443, true
 }
 
 func (wal443 wallet) addPassword(password string, comment string) wallet{
@@ -349,7 +413,7 @@ func (wal443 wallet) addPassword(password string, comment string) wallet{
 	return wal443
 }
 
-func (wal443 wallet) deletePassword(password string) {
+func (wal443 wallet) deletePassword(password string) (wallet) {
 	
 	buff := bytes.NewBuffer([]byte(password))
 	
@@ -370,6 +434,7 @@ func (wal443 wallet) deletePassword(password string) {
 			break
 		}
 	}
+	return wal443
 }
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -423,22 +488,31 @@ func main() {
 	comment := getopt.Arg(3)
 
 	// Now check if we are creating a wallet
+	var ok bool
 	if command == "create" {
 
 		// Create and save the wallet as needed
 		wal443 := createWallet(filename)
+		
 		if wal443 != nil {
-			wal443.saveWallet()
+			wal443, ok = wal443.saveWallet()
+			if(ok == false) {
+				fmt.Println("Error : Save Wallet Failed!")
+				os.Exit(-1)
+			}
 		}
 
 	} else {
 
 		// Load the wallet, then process the command
 		wal443 := loadWallet(filename)
-		var ok bool
-		ok, *wal443 = wal443.processWalletCommand(command, password, comment)
+		wal443, ok = wal443.processWalletCommand(command, password, comment)
 		if wal443 != nil && ok {
-			wal443.saveWallet()
+			wal443, ok = wal443.saveWallet()
+			if(ok == false) {
+				fmt.Println("Error : Save Wallet Failed!")
+				os.Exit(-1)
+			}
 		}
 
 	}
@@ -465,7 +539,7 @@ func truncateStringToBytes(data []byte, numBytes int) []byte {
 			check(err)
 		} 
 	}
-	fmt.Printf("truncateStringToBytes : %d\n", buff.Len())
+	// fmt.Printf("truncateStringToBytes : %d\n", buff.Len())
 	
 	return buff.Bytes()
 	
@@ -530,10 +604,11 @@ func aes_decrypt(key []byte, encmessage string) (result string, err error) {
 
 // Reference - https://golang.org/pkg/crypto/hmac/
 // CheckMAC reports whether messageMAC is a valid HMAC tag for message.
-func CheckMAC(message, messageMAC, key []byte) bool {
+func checkMAC(message, messageMAC, key []byte) bool {
 	mac := hmac.New(sha256.New, key)
 	mac.Write(message)
 	expectedMAC := mac.Sum(nil)
+
 	return hmac.Equal(messageMAC, expectedMAC)
 }
 
