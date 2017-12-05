@@ -202,7 +202,70 @@ func (wal443 wallet) saveWallet() bool {
 	// Return successfully
 	return true
 }
+func (wal443 wallet) showPassword() bool{
 
+    fmt.Print("Enter Password Number: ")
+    var input string
+    fmt.Scanln(&input)
+    fmt.Print(input)
+
+	entry, err := strconv.Atoi(input)
+	if err != nil {
+		fmt.Print("Error")
+	}
+	entry -= 1 //zero indexed
+	//look up from the password array 
+
+	encrpytedPw := wal443.passwords[entry].password
+	
+	result, err := aes_decrypt(wal443.masterPassword, string(encrpytedPw))
+	if err != nil {
+		fmt.Print("Error")
+	}
+
+	fmt.Printf("Password Entry %d is %s", entry, result)
+
+	return true
+}	
+func (wal443 wallet) listPassword() bool{
+
+	for i := 0; i < len(wal443.passwords); i++ {
+
+		fmt.Printf("Password Entry %d Comment: %s", i, wal443.passwords[i].comment)
+	}
+
+	return true
+}
+func (wal443 wallet) changePassword() bool{
+	
+	fmt.Print("Enter Password Number: ")
+    var input string
+    fmt.Scanln(&input)
+    fmt.Print(input)
+
+    entry, err := strconv.Atoi(input)
+	if err != nil {
+		fmt.Print("Error")
+	}
+	entry -= 1 //zero indexed
+
+	fmt.Print("Enter New Password: ")
+    var newpw string
+    fmt.Scanln(&newpw)
+    fmt.Print(newpw)
+
+    //perhaps the UI interface needs to be called here
+    
+    wal443.passwords[entry].password = []byte(newpw)
+
+	return true
+}	
+func (wal443 wallet) resetPassword() bool{
+
+	fmt.Print("helloWorld")
+
+	return true
+}
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Function     : processWalletCommand
@@ -225,17 +288,15 @@ func (wal443 wallet) processWalletCommand(command string, password string, comme
 		break
 		
 	case "show":
-		// DO SOMETHING HERE
+		wal443.showPassword()
 		
 	case "chpw":
-		// DO SOMETHING HERE
-		
+		wal443.changePassword()
+
 	case "reset":
-		// DO SOMETHING HERE
-		
+		wal443.resetPassword()		
 	case "list":
-		// DO SOMETHING HERE
-		
+		wal443.listPassword()		
 	default:
 		// Handle error, return failure
 		fmt.Fprintf(os.Stderr, "Bad/unknown command for wallet [%s], aborting.\n", command)
