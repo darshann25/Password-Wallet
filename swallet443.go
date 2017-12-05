@@ -271,23 +271,16 @@ func (wal443 wallet) showPassword() bool{
     fmt.Print("Enter Password Number: ")
     var input string
     fmt.Scanln(&input)
-    fmt.Print(input)
 
 	entry, err := strconv.Atoi(input)
 	if err != nil {
 		fmt.Print("Error")
 	}
 	entry -= 1 //zero indexed
+
 	//look up from the password array 
 
-	encrpytedPw := wal443.passwords[entry].password
-	
-	result, err := aes_decrypt(wal443.masterPassword, string(encrpytedPw))
-	if err != nil {
-		fmt.Print("Error")
-	}
-
-	fmt.Printf("Password Entry %d is %s", entry, result)
+	fmt.Printf("Password Number %s is %s \n", input, string(wal443.passwords[entry].password))
 
 	return true
 }	
