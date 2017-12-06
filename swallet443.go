@@ -288,7 +288,7 @@ func (wal443 wallet) listPassword() bool{
 
 	for i := 0; i < len(wal443.passwords); i++ {
 
-		fmt.Printf("Password Entry %d Comment: %s", i, wal443.passwords[i].comment)
+		fmt.Printf("Password Entry %d Comment: %s \n", i, wal443.passwords[i].comment)
 	}
 
 	return true
@@ -298,7 +298,6 @@ func (wal443 wallet) changePassword() bool{
 	fmt.Print("Enter Password Number: ")
     var input string
     fmt.Scanln(&input)
-    fmt.Print(input)
 
     entry, err := strconv.Atoi(input)
 	if err != nil {
@@ -309,7 +308,6 @@ func (wal443 wallet) changePassword() bool{
 	fmt.Print("Enter New Password: ")
     var newpw string
     fmt.Scanln(&newpw)
-    fmt.Print(newpw)
 
     //perhaps the UI interface needs to be called here
     
@@ -319,7 +317,14 @@ func (wal443 wallet) changePassword() bool{
 }	
 func (wal443 wallet) resetPassword() bool{
 
-	fmt.Print("helloWorld")
+	fmt.Printf("%s", string(wal443.masterPassword))
+
+	//UI for master password
+	//fmt.Print("Enter Password Number: ")
+    var input string
+    fmt.Scanln(&input)
+
+    wal443.masterPassword = []byte(input)
 
 	return true
 }
