@@ -438,32 +438,31 @@ func (wal443 wallet) listPassword() bool{
 	
 		for i := 0; i < len(wal443.passwords); i++ {
 	
-			fmt.Printf("Password Entry %d Comment: %s \n", i + 1, wal443.passwords[i].comment)
+			fmt.Printf("Entry : %d || Comment : %s \n", i + 1, wal443.passwords[i].comment)
 		}
 	
 		return true
 	}
 func (wal443 wallet) changePassword() bool{
-		
-		fmt.Print("Enter Password Number: ")
-		var input string
-		fmt.Scanln(&input)
 	
-		entry, err := strconv.Atoi(input)
-		if err != nil {
-			fmt.Print("Error")
-		}
-		entry -= 1 //zero indexed
+	maxEntryNum := len(wal443.passwords)
 	
-		fmt.Print("Enter New Password: ")
-		var newpw string
-		fmt.Scanln(&newpw)
+	entryText, newPassword := createChangePasswordTextUI(maxEntryNum)
+	entry, err := strconv.Atoi(entryText)
+	check(err)
+	//perhaps the UI interface needs to be called here
+
+	if(entry > 0 && entry <= maxEntryNum && newPassword != "") {
+		wal443.passwords[entry - 1].password = []byte(newPassword)
+	} else if (newPassword == ""){
+		fmt.Println("Password is an invalid empty string. Please enter a valid password.")
+	} else {
+		fmt.Println("Incorrect entry number requested. Please use list command to find the entry number.")
+		os.Exit(-1)
+	}
 	
-		//perhaps the UI interface needs to be called here
-		
-		wal443.passwords[entry].password = []byte(newpw)
-	
-		return true
+
+	return true
 	}	
 
 func (wal443 wallet) resetPassword() (wallet, bool){
@@ -1082,6 +1081,74 @@ func createShowPasswordResultTextUI(entry int, passwordText string) {
 	)
 
 	tui.DefaultFocusChain.Set(help)
+
+	ui := tui.New(root)
+	ui.SetKeybinding("Esc", func() { ui.Quit() })
+
+	if err := ui.Run(); err != nil {
+		panic(err)
+	}
+
+	return
+}
+
+func createChangePasswordTextUI(maxEntryNum int) (entryText string, newPassword string){
+	entry := tui.NewEntry()
+	entry.SetFocused(true)
+	entry.OnChanged(func(e *tui.Entry) {
+		entryText = e.Text()
+	})
+
+	password := tui.NewEntry()
+	// password.SetFocused(true)
+	password.OnChanged(func(e *tui.Entry) {
+		newPassword = e.Text()
+	})
+
+	form := tui.NewGrid(0, 0)
+	form.AppendRow(tui.NewLabel("Entry Number : "), tui.NewLabel("New Password : "))
+	form.AppendRow(entry, password)
+
+	status := tui.NewStatusBar("Ready.")
+
+	enter := tui.NewButton("[Enter]")
+	enter.OnActivated(func(b *tui.Button) {
+		num, err := strconv.Atoi(entryText)
+		check(err)
+
+		if(num > 0 && num <= maxEntryNum) {
+			status.SetText("Valid entry number requested.\n Press Esc to exit command window.")
+			newPassword = password.Text()
+		} else {
+			status.SetText("Invalid entry number requested. Please use list command to check entry numbers\n")
+		}
+	})
+
+	buttons := tui.NewHBox(
+		tui.NewSpacer(),
+		tui.NewPadder(1, 0, enter),
+	)
+
+	window := tui.NewVBox(
+		tui.NewPadder(0, 0, tui.NewLabel("Show Password Command : Please enter the Entry Number for the password you want to see!\n")),
+		tui.NewPadder(1, 1, form),
+		buttons,
+	)
+	window.SetBorder(true)
+
+	wrapper := tui.NewVBox(
+		tui.NewSpacer(),
+		window,
+		tui.NewSpacer(),
+	)
+	content := tui.NewHBox(tui.NewSpacer(), wrapper, tui.NewSpacer())
+
+	root := tui.NewVBox(
+		content,
+		status,
+	)
+
+	tui.DefaultFocusChain.Set(entry, password, enter)
 
 	ui := tui.New(root)
 	ui.SetKeybinding("Esc", func() { ui.Quit() })
