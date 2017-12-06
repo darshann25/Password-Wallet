@@ -30,6 +30,7 @@ import (
 	"io/ioutil"
 	"strconv"
 	"errors"
+	"github.com/marcusolsson/tui-go"
 	
 	// There will likely be several mode APIs you need
 )
@@ -53,7 +54,7 @@ type wallet struct {
 }
 
 // Global data
-var usageText string = `USAGE: swallet443 [-h] [-v] <wallet-file> [create|add|del|show|chpw|reset|list] <password> <comment>
+var usageText string = `USAGE: swallet443 [-h] [-v] <wallet-file> [create|add|del|show|chpw|reset|list]
 
 where:
     -h - help mode (display this message)
@@ -61,8 +62,6 @@ where:
 
     <wallet-file> - wallet file to manage
 	[create|add|del|show|chpw] - is a command to execute, where
-	<password> - password to be added or removed
-	<comment> - comment associated with a password
 
      create - create a new wallet file
      add - adds a password to the wallet
@@ -114,7 +113,15 @@ func createWallet(filename string) *wallet {
 	wal443.genNum = 0
 
 	//temp - Needs UI
-	wal443.masterPassword = []byte("12345")
+	//wal443.masterPassword = []byte("12345")
+	masterPassword, valid := createSetMasterPasswordTextUI()
+	
+	if(valid) {
+		wal443.masterPassword = []byte(masterPassword)
+	} else {
+		fmt.Println("Master password incorrectly set.\nPlease create the wallet again.\n")
+		os.Exit(-1)
+	}
 
 	// Return the wall
 	return &wal443
@@ -136,7 +143,18 @@ func loadWallet(filename string) *wallet {
 	wal443.filename = filename
 
 	// temp - Need UI
-	wal443.masterPassword = []byte("12345")
+	// wal443.masterPassword = []byte("12345")
+	
+	/*
+	_, valid := createCheckMasterPasswordTextUI(string(wal443.masterPassword))
+	
+	if(valid == false) {
+		fmt.Println("Incorrect Master Password. Unauthorized User.")
+		os.Exit(-1)
+	}
+	*/
+	masterPassword := createGetMasterPasswordTextUI()
+	wal443.masterPassword = []byte(masterPassword)
 
 	data, err := ioutil.ReadFile(wal443.filename + ".txt")
 	check(err)
@@ -193,7 +211,7 @@ func loadWallet(filename string) *wallet {
 		}
 	} else {
 
-		fmt.Println("INVALID MASTERPASSWORD ENTERED!")
+		fmt.Println("Incorrect Master Password. Unauthorized User.")
 		os.Exit(-1)
 
 	}
@@ -266,66 +284,7 @@ func (wal443 wallet) saveWallet() (*wallet, bool) {
 	// Return successfully
 	return &wal443, true
 }
-func (wal443 wallet) showPassword() bool{
 
-    fmt.Print("Entry Number: ")
-    var input string
-    fmt.Scanln(&input)
-
-	entry, err := strconv.Atoi(input)
-	if err != nil {
-		fmt.Print("Error")
-	}
-	
-	//look up from the password array 
-	fmt.Printf("Password for Entry Number %s is %s \n", input, string(wal443.passwords[entry - 1].password))
-
-	return true
-}	
-func (wal443 wallet) listPassword() bool{
-
-	for i := 0; i < len(wal443.passwords); i++ {
-
-		fmt.Printf("Password Entry %d Comment: %s \n", i + 1, wal443.passwords[i].comment)
-	}
-
-	return true
-}
-func (wal443 wallet) changePassword() bool{
-	
-	fmt.Print("Enter Password Number: ")
-    var input string
-    fmt.Scanln(&input)
-
-    entry, err := strconv.Atoi(input)
-	if err != nil {
-		fmt.Print("Error")
-	}
-	entry -= 1 //zero indexed
-
-	fmt.Print("Enter New Password: ")
-    var newpw string
-    fmt.Scanln(&newpw)
-
-    //perhaps the UI interface needs to be called here
-    
-    wal443.passwords[entry].password = []byte(newpw)
-
-	return true
-}	
-func (wal443 wallet) resetPassword() bool{
-
-	fmt.Printf("%s", string(wal443.masterPassword))
-
-	//UI for master password
-	//fmt.Print("Enter Password Number: ")
-    var input string
-    fmt.Scanln(&input)
-
-    wal443.masterPassword = []byte(input)
-
-	return true
-}
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Function     : processWalletCommand
@@ -335,16 +294,16 @@ func (wal443 wallet) resetPassword() bool{
 //                command - the command to execute
 // Outputs      : true if successful test, false if failure
 
-func (wal443 wallet) processWalletCommand(command string, password string, comment string) (*wallet, bool) {
+func (wal443 wallet) processWalletCommand(command string) (*wallet, bool) {
 
 	// Process the command 
 	switch command {
 	case "add":
-		wal443 = wal443.addPassword(password, comment)
+		wal443 = wal443.addPassword()
 		break
 
 	case "del":
-		wal443 = wal443.deletePassword(password)
+		wal443 = wal443.deletePassword()
 		break
 		
 	case "show":
@@ -373,8 +332,10 @@ func (wal443 wallet) processWalletCommand(command string, password string, comme
 	return &wal443, true
 }
 
-func (wal443 wallet) addPassword(password string, comment string) wallet{
+func (wal443 wallet) addPassword() wallet{
 	
+	password, comment := createAddCommandTextUI()
+
 	var walEntry walletEntry
 	buff := bytes.NewBuffer([]byte(password))
 	
@@ -415,10 +376,12 @@ func (wal443 wallet) addPassword(password string, comment string) wallet{
 	return wal443
 }
 
-func (wal443 wallet) deletePassword(password string) (wallet) {
+func (wal443 wallet) deletePassword() (wallet) {
 	
-	buff := bytes.NewBuffer([]byte(password))
+	entryNum := createDeleteCommandTextUI()
+	// buff := bytes.NewBuffer([]byte(entryNum))
 	
+	/*
 	// Password
 	if buff.Len() < PASSWORD_BYTE_SIZE { 
 		padding := PASSWORD_BYTE_SIZE - buff.Len()
@@ -427,6 +390,7 @@ func (wal443 wallet) deletePassword(password string) (wallet) {
 			check(err)
 		} 
 	}
+
 	delPassword := buff.Bytes()
 
 	// remove walletEntry associated with password
@@ -435,9 +399,82 @@ func (wal443 wallet) deletePassword(password string) (wallet) {
 			wal443.passwords = append(wal443.passwords[:index], wal443.passwords[index + 1 :]...)
 			break
 		}
+	}*/
+
+	index := entryNum - 1
+	if(index >=0 && index < len(wal443.passwords)) {
+		wal443.passwords = append(wal443.passwords[:index], wal443.passwords[index + 1 :]...)
+	} else {
+		fmt.Println("Invalid Entry Number. Delete failed!")
+		os.Exit(-1)
 	}
+
 	return wal443
 }
+
+func (wal443 wallet) showPassword() bool{
+	
+		fmt.Print("Entry Number: ")
+		var input string
+		fmt.Scanln(&input)
+	
+		entry, err := strconv.Atoi(input)
+		if err != nil {
+			fmt.Print("Error")
+		}
+		
+		//look up from the password array 
+		fmt.Printf("Password for Entry Number %s is %s \n", input, string(wal443.passwords[entry - 1].password))
+	
+		return true
+	}
+
+func (wal443 wallet) listPassword() bool{
+	
+		for i := 0; i < len(wal443.passwords); i++ {
+	
+			fmt.Printf("Password Entry %d Comment: %s \n", i + 1, wal443.passwords[i].comment)
+		}
+	
+		return true
+	}
+func (wal443 wallet) changePassword() bool{
+		
+		fmt.Print("Enter Password Number: ")
+		var input string
+		fmt.Scanln(&input)
+	
+		entry, err := strconv.Atoi(input)
+		if err != nil {
+			fmt.Print("Error")
+		}
+		entry -= 1 //zero indexed
+	
+		fmt.Print("Enter New Password: ")
+		var newpw string
+		fmt.Scanln(&newpw)
+	
+		//perhaps the UI interface needs to be called here
+		
+		wal443.passwords[entry].password = []byte(newpw)
+	
+		return true
+	}	
+
+func (wal443 wallet) resetPassword() bool{
+	
+		masterPassword, valid := createSetMasterPasswordTextUI()
+		
+		if(valid) {
+			wal443.masterPassword = []byte(masterPassword)
+		} else {
+			fmt.Println("Master password incorrectly set.\nPlease reset the password again.\n")
+			os.Exit(-1)
+		}
+	
+		return valid
+	}
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Function     : main
@@ -483,11 +520,11 @@ func main() {
 	fmt.Printf("command [%s]\n", getopt.Arg(1))
 	command := strings.ToLower(getopt.Arg(1))
 
-	fmt.Printf("password [%s]\n", getopt.Arg(2))
-	password := strings.ToLower(getopt.Arg(2))
+	//fmt.Printf("password [%s]\n", getopt.Arg(2))
+	//password := strings.ToLower(getopt.Arg(2))
 
-	fmt.Printf("comment [%s]\n", getopt.Arg(3))
-	comment := getopt.Arg(3)
+	//fmt.Printf("comment [%s]\n", getopt.Arg(3))
+	//comment := getopt.Arg(3)
 
 	// Now check if we are creating a wallet
 	var ok bool
@@ -505,10 +542,9 @@ func main() {
 		}
 
 	} else {
-
 		// Load the wallet, then process the command
 		wal443 := loadWallet(filename)
-		wal443, ok = wal443.processWalletCommand(command, password, comment)
+		wal443, ok = wal443.processWalletCommand(command)
 		if wal443 != nil && ok {
 			wal443, ok = wal443.saveWallet()
 			if(ok == false) {
@@ -618,5 +654,322 @@ func createMAC(data, masterkey[] byte) (hMAC []byte) {
 	mac := hmac.New(sha256.New, masterkey)
 	mac.Write(data)
 	hMAC = mac.Sum(nil)
+	return
+}
+
+func createGetMasterPasswordTextUI() (masterPasswordInput string){
+
+		password1 := tui.NewEntry()
+		password1.SetFocused(true)
+		password1.OnChanged(func(e *tui.Entry) {
+			masterPasswordInput = e.Text()
+		})
+	
+		form := tui.NewGrid(0, 0)
+		form.AppendRow(tui.NewLabel("Master Password : "))
+		form.AppendRow(password1)
+	
+		status := tui.NewStatusBar("Ready.")
+	
+		enter := tui.NewButton("[Enter]")
+		enter.OnActivated(func(b *tui.Button) {
+			status.SetText("Thank you for entering the password.\nPress Esc to exit command window.")
+		})
+	
+		buttons := tui.NewHBox(
+			tui.NewSpacer(),
+			tui.NewPadder(1, 0, enter),
+		)
+	
+		window := tui.NewVBox(
+			tui.NewPadder(0, 0, tui.NewLabel("File Locked : Please enter the Master Password\n")),
+			tui.NewPadder(1, 1, form),
+			buttons,
+		)
+		window.SetBorder(true)
+	
+		wrapper := tui.NewVBox(
+			tui.NewSpacer(),
+			window,
+			tui.NewSpacer(),
+		)
+		content := tui.NewHBox(tui.NewSpacer(), wrapper, tui.NewSpacer())
+	
+		root := tui.NewVBox(
+			content,
+			status,
+		)
+	
+		tui.DefaultFocusChain.Set(password1, enter)
+	
+		ui := tui.New(root)
+		ui.SetKeybinding("Esc", func() { ui.Quit() })
+	
+		if err := ui.Run(); err != nil {
+			panic(err)
+		}
+
+		return
+	}
+
+func createCheckMasterPasswordTextUI(expectedMasterPassword string) (masterPasswordInput string, valid bool){
+	
+		valid = false
+		password1 := tui.NewEntry()
+		password1.SetFocused(true)
+		password1.OnChanged(func(e *tui.Entry) {
+			masterPasswordInput = e.Text()
+		})
+	
+		form := tui.NewGrid(0, 0)
+		form.AppendRow(tui.NewLabel("Master Password : "))
+		form.AppendRow(password1)
+	
+		status := tui.NewStatusBar("Ready.")
+	
+		enter := tui.NewButton("[Enter]")
+		enter.OnActivated(func(b *tui.Button) {
+			if (strings.Compare(password1.Text(), expectedMasterPassword) == 0) {
+				status.SetText("Correct Password!\n Press Esc to exit command window.")
+				valid = true
+			} else {
+				status.SetText("Incorrect Password. Please try again.")
+				valid = false
+			}
+		})
+	
+		buttons := tui.NewHBox(
+			tui.NewSpacer(),
+			tui.NewPadder(1, 0, enter),
+		)
+	
+		window := tui.NewVBox(
+			tui.NewPadder(0, 0, tui.NewLabel("Authenticate User : Please enter the Master Password\n")),
+			tui.NewPadder(1, 1, form),
+			buttons,
+		)
+		window.SetBorder(true)
+	
+		wrapper := tui.NewVBox(
+			tui.NewSpacer(),
+			window,
+			tui.NewSpacer(),
+		)
+		content := tui.NewHBox(tui.NewSpacer(), wrapper, tui.NewSpacer())
+	
+		root := tui.NewVBox(
+			content,
+			status,
+		)
+	
+		tui.DefaultFocusChain.Set(password1, enter)
+	
+		ui := tui.New(root)
+		ui.SetKeybinding("Esc", func() { ui.Quit() })
+	
+		if err := ui.Run(); err != nil {
+			panic(err)
+		}
+		
+		if(strings.Compare(password1.Text(), expectedMasterPassword) == 0) {
+			valid = true
+		} else {
+			valid = false
+		}
+
+		return
+	}
+
+
+func createSetMasterPasswordTextUI() (masterPasswordInput string, valid bool){
+	
+		valid = false
+		password1 := tui.NewEntry()
+		password1.SetFocused(true)
+		password1.OnChanged(func(e *tui.Entry) {
+			masterPasswordInput = e.Text()
+		})
+
+		password2 := tui.NewEntry()
+	
+		form := tui.NewGrid(0, 0)
+		form.AppendRow(tui.NewLabel("Master Password : "), tui.NewLabel("Confirm Master Password : "))
+		form.AppendRow(password1, password2)
+	
+		status := tui.NewStatusBar("Ready.")
+	
+		enter := tui.NewButton("[Enter]")
+		enter.OnActivated(func(b *tui.Button) {
+			if (strings.Compare(password1.Text(), password2.Text()) == 0 && strings.Compare(password1.Text(), "") != 0) {
+				status.SetText("Passwords match! Master password successfully set.\n Press Esc to exit command window.")
+				valid = true
+			} else {
+				status.SetText("Passwords do not match. Please try again.")
+				valid = false
+			}
+		})
+	
+		buttons := tui.NewHBox(
+			tui.NewSpacer(),
+			tui.NewPadder(1, 0, enter),
+		)
+	
+		window := tui.NewVBox(
+			tui.NewPadder(0, 0, tui.NewLabel("Set Master Password : Please enter and confirm the Master Password\n")),
+			tui.NewPadder(1, 1, form),
+			buttons,
+		)
+		window.SetBorder(true)
+	
+		wrapper := tui.NewVBox(
+			tui.NewSpacer(),
+			window,
+			tui.NewSpacer(),
+		)
+		content := tui.NewHBox(tui.NewSpacer(), wrapper, tui.NewSpacer())
+	
+		root := tui.NewVBox(
+			content,
+			status,
+		)
+	
+		tui.DefaultFocusChain.Set(password1, password2, enter)
+	
+		ui := tui.New(root)
+		ui.SetKeybinding("Esc", func() { ui.Quit() })
+	
+		if err := ui.Run(); err != nil {
+			panic(err)
+		}
+		
+		if(strings.Compare(password1.Text(), password2.Text()) == 0 && strings.Compare(password1.Text(), "") != 0) {
+			valid = true
+		} else {
+			valid = false
+		}
+
+		return
+	}
+
+func createAddCommandTextUI() (passwordInput, commentInput string){
+
+	password := tui.NewEntry()
+	password.SetFocused(true)
+	password.OnChanged(func(e *tui.Entry) {
+		passwordInput = e.Text()
+	})
+
+	comment := tui.NewEntry()
+	comment.OnChanged(func(e *tui.Entry) {
+		commentInput = e.Text()
+	})
+
+	form := tui.NewGrid(0, 0)
+	form.AppendRow(tui.NewLabel("Password"), tui.NewLabel("Comment"))
+	form.AppendRow(password, comment)
+
+	status := tui.NewStatusBar("Ready.")
+
+	enter := tui.NewButton("[Enter]")
+	enter.OnActivated(func(b *tui.Button) {
+		status.SetText("Password Successfully Added.\n Press Esc to exit command window.")
+	})
+
+	buttons := tui.NewHBox(
+		tui.NewSpacer(),
+		tui.NewPadder(1, 0, enter),
+	)
+
+	window := tui.NewVBox(
+		tui.NewPadder(0, 0, tui.NewLabel("Add Password Command : Please enter the Password and Comment!\n")),
+		tui.NewPadder(1, 1, form),
+		buttons,
+	)
+	window.SetBorder(true)
+
+	wrapper := tui.NewVBox(
+		tui.NewSpacer(),
+		window,
+		tui.NewSpacer(),
+	)
+	content := tui.NewHBox(tui.NewSpacer(), wrapper, tui.NewSpacer())
+
+	root := tui.NewVBox(
+		content,
+		status,
+	)
+
+	tui.DefaultFocusChain.Set(password, comment, enter)
+
+	ui := tui.New(root)
+	ui.SetKeybinding("Esc", func() { ui.Quit() })
+
+	if err := ui.Run(); err != nil {
+		panic(err)
+	}
+
+	return
+}
+
+func createDeleteCommandTextUI() (entryNum int) {
+	
+	entry := tui.NewEntry()
+	entry.SetFocused(true)
+	entry.OnChanged(func(e *tui.Entry) {
+		num, err := strconv.Atoi(e.Text())
+		check(err)
+		entryNum = num
+	})
+
+	form := tui.NewGrid(0, 0)
+	form.AppendRow(tui.NewLabel("Entry Number : "))
+	form.AppendRow(entry)
+
+	status := tui.NewStatusBar("Ready.")
+
+	enter := tui.NewButton("[Enter]")
+	enter.OnActivated(func(b *tui.Button) {
+		status.SetText("Entry number successfully recorded.\n Press Esc to exit command window.")
+	})
+	help := tui.NewButton("[Help]")
+	help.OnActivated(func(b *tui.Button) {
+		status.SetText("If you do not know the entry number of the desired password, please use list and/or show command to find the entry number.\n")
+	})
+
+
+	buttons := tui.NewHBox(
+		tui.NewSpacer(),
+		tui.NewPadder(1, 0, enter),
+		tui.NewPadder(1, 0, help),
+	)
+
+	window := tui.NewVBox(
+		tui.NewPadder(0, 0, tui.NewLabel("Delete Password Command : Please enter the Entry Number for the Password you want to Delete!\n")),
+		tui.NewPadder(1, 1, form),
+		buttons,
+	)
+	window.SetBorder(true)
+
+	wrapper := tui.NewVBox(
+		tui.NewSpacer(),
+		window,
+		tui.NewSpacer(),
+	)
+	content := tui.NewHBox(tui.NewSpacer(), wrapper, tui.NewSpacer())
+
+	root := tui.NewVBox(
+		content,
+		status,
+	)
+
+	tui.DefaultFocusChain.Set(entry, enter, help)
+
+	ui := tui.New(root)
+	ui.SetKeybinding("Esc", func() { ui.Quit() })
+
+	if err := ui.Run(); err != nil {
+		panic(err)
+	}
+
 	return
 }
