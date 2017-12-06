@@ -119,7 +119,7 @@ func createWallet(filename string) *wallet {
 	if(valid) {
 		wal443.masterPassword = []byte(masterPassword)
 	} else {
-		fmt.Println("Master password incorrectly set.\nPlease create the wallet again.\n")
+		fmt.Println("Master password incorrectly set.\nPlease create the wallet again.")
 		os.Exit(-1)
 	}
 
@@ -320,7 +320,7 @@ func (wal443 wallet) processWalletCommand(command string) (*wallet, bool) {
 
 	case "reset":
 		wal443, _ = wal443.resetPassword()
-		fmt.Printf("New Password : %s\n", string(wal443.masterPassword))
+		// fmt.Printf("New Password : %s\n", string(wal443.masterPassword))
 		break
 
 	case "list":
@@ -419,21 +419,13 @@ func (wal443 wallet) deletePassword() (wallet) {
 
 func (wal443 wallet) showPassword() bool {
 	
-		//fmt.Print("Entry Number: ")
-		//var input string
-		//fmt.Scanln(&input)
 		maxEntryNum := len(wal443.passwords)
 		entryText := createShowPasswordTextUI(maxEntryNum)
 		entry, err := strconv.Atoi(entryText)
 		check(err)
-
-		fmt.Printf("Entry : %d\n", entry)
-			
+	
 		if(entry > 0 && entry <= maxEntryNum) {
-			//look up from the password array
-			//createShowPasswordResultTextUI(entry, string(wal443.passwords[entry - 1].password)
-			fmt.Printf("Password for Entry Number %d is %s \n", entry, string(wal443.passwords[entry - 1].password))
-			fmt.Println("Reaches Point!")
+			createShowPasswordResultTextUI(entry, string(wal443.passwords[entry - 1].password))
 		} else {
 			fmt.Println("Incorrect entry number requested. Please use list command to find the entry number.")
 			os.Exit(-1)
@@ -479,9 +471,9 @@ func (wal443 wallet) resetPassword() (wallet, bool){
 		masterPassword, valid := createSetMasterPasswordTextUI()
 		
 		if(valid) {
-			fmt.Printf("Old Password : %s\n", string(wal443.masterPassword))
+			// fmt.Printf("Old Password : %s\n", string(wal443.masterPassword))
 			wal443.masterPassword = []byte(masterPassword)
-			fmt.Printf("New Password : %s\n", masterPassword)
+			// fmt.Printf("New Password : %s\n", masterPassword)
 		} else {
 			fmt.Println("Master password incorrectly set.\nPlease reset the password again.")
 			os.Exit(-1)
@@ -1050,30 +1042,28 @@ func createShowPasswordTextUI(maxEntryNum int) (entryText string){
 	return
 }
 
-/*
-func createShowPasswordResultTextUI(entry int, password string) {
-	password := tui.NewEntry()
-	password.SetFocused(true)
-	password.SetText(password)
 
+func createShowPasswordResultTextUI(entry int, passwordText string) {
+	password := tui.NewLabel(passwordText)
+	
 	form := tui.NewGrid(0, 0)
-	form.AppendRow(tui.NewLabel("Password for Entry Number " + entry + " : "))
-	form.AppendRow(entry)
+	form.AppendRow(tui.NewLabel("Password for Entry Number " + string(entry) + " : "))
+	form.AppendRow(password)
 
 	status := tui.NewStatusBar("Ready.")
 
 	help := tui.NewButton("[Help]")
 	help.OnActivated(func(b *tui.Button) {
-		
+		status.SetText("If you do not know the entry number of the desired password, please use list command to find the entry number.\n")
 	})
 
 	buttons := tui.NewHBox(
 		tui.NewSpacer(),
-		tui.NewPadder(1, 0, enter),
+		tui.NewPadder(1, 0, help),
 	)
 
 	window := tui.NewVBox(
-		tui.NewPadder(0, 0, tui.NewLabel("Show Password Command : Please enter the Entry Number for the password you want to see!\n")),
+		tui.NewPadder(0, 0, tui.NewLabel("Show Password Command : The requested password is displayed below!\n")),
 		tui.NewPadder(1, 1, form),
 		buttons,
 	)
@@ -1091,7 +1081,7 @@ func createShowPasswordResultTextUI(entry int, password string) {
 		status,
 	)
 
-	tui.DefaultFocusChain.Set(entry, enter)
+	tui.DefaultFocusChain.Set(help)
 
 	ui := tui.New(root)
 	ui.SetKeybinding("Esc", func() { ui.Quit() })
@@ -1102,4 +1092,3 @@ func createShowPasswordResultTextUI(entry int, password string) {
 
 	return
 }
-*/
