@@ -268,7 +268,7 @@ func (wal443 wallet) saveWallet() (*wallet, bool) {
 }
 func (wal443 wallet) showPassword() bool{
 
-    fmt.Print("Enter Password Number: ")
+    fmt.Print("Entry Number: ")
     var input string
     fmt.Scanln(&input)
 
@@ -276,11 +276,9 @@ func (wal443 wallet) showPassword() bool{
 	if err != nil {
 		fmt.Print("Error")
 	}
-	entry -= 1 //zero indexed
-
+	
 	//look up from the password array 
-
-	fmt.Printf("Password Number %s is %s \n", input, string(wal443.passwords[entry].password))
+	fmt.Printf("Password for Entry Number %s is %s \n", input, string(wal443.passwords[entry - 1].password))
 
 	return true
 }	
@@ -288,7 +286,7 @@ func (wal443 wallet) listPassword() bool{
 
 	for i := 0; i < len(wal443.passwords); i++ {
 
-		fmt.Printf("Password Entry %d Comment: %s \n", i, wal443.passwords[i].comment)
+		fmt.Printf("Password Entry %d Comment: %s \n", i + 1, wal443.passwords[i].comment)
 	}
 
 	return true
@@ -351,14 +349,20 @@ func (wal443 wallet) processWalletCommand(command string, password string, comme
 		
 	case "show":
 		wal443.showPassword()
+		break
 		
 	case "chpw":
 		wal443.changePassword()
+		break
 
 	case "reset":
-		wal443.resetPassword()		
+		wal443.resetPassword()
+		break
+
 	case "list":
-		wal443.listPassword()		
+		wal443.listPassword()
+		break
+
 	default:
 		// Handle error, return failure
 		fmt.Fprintf(os.Stderr, "Bad/unknown command for wallet [%s], aborting.\n", command)
