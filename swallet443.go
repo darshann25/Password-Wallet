@@ -4,8 +4,12 @@
 //  Description    : This is the implementaiton file for the swallet password
 //                   wallet program program.  See assignment details.
 //
-//  Collaborators  : **TODO**: FILL ME IN
-//  Last Modified  : **TODO**: FILL ME IN
+//  Collaborators  : Darshan Patel - ddp5131
+//		     Rex Li - rjl5401
+//		     Justin Dillman - jnd5215
+//		     Raj Desai - rad5434
+//		     Aditya Agarwal - aaa6026
+//  Last Modified  : Dec 7, 2017 - 03:34am
 //
 
 // Package statement
@@ -271,6 +275,8 @@ func (wal443 wallet) saveWallet() (*wallet, bool) {
 		// aesPassword := string(walEntry.salt) + "||" + string(walEntry.password)
 		// aesBase64Password := base64.URLEncoding.EncodeToString([]byte(aesPassword))
 
+		// fmt.Println(len([]byte(aesPassword)))
+
 		data := entryString + "||" + aesPassword + "||" + string(walEntry.comment) + "\n"
 		// fmt.Println(data)
 
@@ -320,7 +326,6 @@ func (wal443 wallet) processWalletCommand(command string) (*wallet, bool) {
 
 	case "reset":
 		wal443, _ = wal443.resetPassword()
-		// fmt.Printf("New Password : %s\n", string(wal443.masterPassword))
 		break
 
 	case "list":
@@ -665,204 +670,211 @@ func createMAC(data, masterkey[] byte) (hMAC []byte) {
 
 func createGetMasterPasswordTextUI() (masterPasswordInput string){
 
-		password1 := tui.NewEntry()
-		password1.SetFocused(true)
-		password1.OnChanged(func(e *tui.Entry) {
-			masterPasswordInput = e.Text()
-		})
-	
-		form := tui.NewGrid(0, 0)
-		form.AppendRow(tui.NewLabel("Master Password : "))
-		form.AppendRow(password1)
-	
-		status := tui.NewStatusBar("Ready.")
-	
-		enter := tui.NewButton("[Enter]")
-		enter.OnActivated(func(b *tui.Button) {
-			status.SetText("Thank you for entering the password.\nPress Esc to exit command window.")
-		})
-	
-		buttons := tui.NewHBox(
-			tui.NewSpacer(),
-			tui.NewPadder(1, 0, enter),
-		)
-	
-		window := tui.NewVBox(
-			tui.NewPadder(0, 0, tui.NewLabel("File Locked : Please enter the Master Password\n")),
-			tui.NewPadder(1, 1, form),
-			buttons,
-		)
-		window.SetBorder(true)
-	
-		wrapper := tui.NewVBox(
-			tui.NewSpacer(),
-			window,
-			tui.NewSpacer(),
-		)
-		content := tui.NewHBox(tui.NewSpacer(), wrapper, tui.NewSpacer())
-	
-		root := tui.NewVBox(
-			content,
-			status,
-		)
-	
-		tui.DefaultFocusChain.Set(password1, enter)
-	
-		ui := tui.New(root)
-		ui.SetKeybinding("Esc", func() { ui.Quit() })
-	
-		if err := ui.Run(); err != nil {
-			panic(err)
-		}
+	var hiddenPassword string
+	hide := true
 
-		return
-	}
-
-func createCheckMasterPasswordTextUI(expectedMasterPassword string) (masterPasswordInput string, valid bool){
-	
-		valid = false
-		password1 := tui.NewEntry()
-		password1.SetFocused(true)
-		password1.OnChanged(func(e *tui.Entry) {
-			masterPasswordInput = e.Text()
-		})
-	
-		form := tui.NewGrid(0, 0)
-		form.AppendRow(tui.NewLabel("Master Password : "))
-		form.AppendRow(password1)
-	
-		status := tui.NewStatusBar("Ready.")
-	
-		enter := tui.NewButton("[Enter]")
-		enter.OnActivated(func(b *tui.Button) {
-			if (strings.Compare(password1.Text(), expectedMasterPassword) == 0) {
-				status.SetText("Correct Password!\n Press Esc to exit command window.")
-				valid = true
-			} else {
-				status.SetText("Incorrect Password. Please try again.")
-				valid = false
-			}
-		})
-	
-		buttons := tui.NewHBox(
-			tui.NewSpacer(),
-			tui.NewPadder(1, 0, enter),
-		)
-	
-		window := tui.NewVBox(
-			tui.NewPadder(0, 0, tui.NewLabel("Authenticate User : Please enter the Master Password\n")),
-			tui.NewPadder(1, 1, form),
-			buttons,
-		)
-		window.SetBorder(true)
-	
-		wrapper := tui.NewVBox(
-			tui.NewSpacer(),
-			window,
-			tui.NewSpacer(),
-		)
-		content := tui.NewHBox(tui.NewSpacer(), wrapper, tui.NewSpacer())
-	
-		root := tui.NewVBox(
-			content,
-			status,
-		)
-	
-		tui.DefaultFocusChain.Set(password1, enter)
-	
-		ui := tui.New(root)
-		ui.SetKeybinding("Esc", func() { ui.Quit() })
-	
-		if err := ui.Run(); err != nil {
-			panic(err)
-		}
+	password1 := tui.NewEntry()
+	password1.SetFocused(true)
+	password1.OnChanged(func(e *tui.Entry) {
+		input := e.Text()
 		
-		if(strings.Compare(password1.Text(), expectedMasterPassword) == 0) {
-			valid = true
-		} else {
-			valid = false
-		}
+		masterPasswordInput, hiddenPassword = updateHiddenPassword(hide, input, masterPasswordInput, hiddenPassword)
+	
+		if(hide) { 
+			password1.SetText(hiddenPassword) 
+		} else { 
+			password1.SetText(masterPasswordInput) 
+		} 
+	})
 
-		return
+	form := tui.NewGrid(0, 0)
+	form.AppendRow(tui.NewLabel("Master Password : "))
+	form.AppendRow(password1)
+
+	status := tui.NewStatusBar("Ready.")
+	usage := tui.NewStatusBar("USAGE : [Enter] - Check status of entered password. || [Hide/Unhide] - Hide/Unhide master password || PRESS [Esc] - Exit Command Window")
+
+	enter := tui.NewButton("[Enter]")
+	enter.OnActivated(func(b *tui.Button) {
+		status.SetText("Thank you for entering the password.\n Press [Esc] to exit command window.")
+	})
+
+	hideButton := tui.NewButton("[Hide / Unhide]")
+	hideButton.OnActivated(func(b *tui.Button) {
+		hide = !hide
+		
+		if(hide) { 
+			password1.SetText(hiddenPassword) 
+		} else { 
+			password1.SetText(masterPasswordInput) 
+		}
+	})
+
+	buttons := tui.NewHBox(
+		tui.NewSpacer(),
+		tui.NewPadder(1, 0, enter),
+		tui.NewPadder(1, 0, hideButton),
+	)
+
+	window := tui.NewVBox(
+		tui.NewPadder(0, 0, tui.NewLabel("File Locked : Please enter the Master Password\n")),
+		tui.NewPadder(1, 1, form),
+		buttons,
+	)
+	window.SetBorder(true)
+
+	wrapper := tui.NewVBox(
+		tui.NewSpacer(),
+		window,
+		tui.NewSpacer(),
+	)
+	content := tui.NewHBox(tui.NewSpacer(), wrapper, tui.NewSpacer())
+
+	root := tui.NewVBox(
+		content,
+		status,
+		usage,
+	)
+
+	tui.DefaultFocusChain.Set(password1, enter, hideButton)
+
+	ui := tui.New(root)
+	ui.SetKeybinding("Esc", func() { ui.Quit() })
+
+	if err := ui.Run(); err != nil {
+		panic(err)
 	}
 
+	return
+	}
 
 func createSetMasterPasswordTextUI() (masterPasswordInput string, valid bool){
 	
-		valid = false
-		password1 := tui.NewEntry()
-		password1.SetFocused(true)
-		password1.OnChanged(func(e *tui.Entry) {
-			masterPasswordInput = e.Text()
-		})
+	var hiddenPassword1 string
+	var hiddenPassword2 string
+	var masterPasswordConfirm string
+	hide := true
 
-		password2 := tui.NewEntry()
-	
-		form := tui.NewGrid(0, 0)
-		form.AppendRow(tui.NewLabel("Master Password : "), tui.NewLabel("Confirm Master Password : "))
-		form.AppendRow(password1, password2)
-	
-		status := tui.NewStatusBar("Ready.")
-	
-		enter := tui.NewButton("[Enter]")
-		enter.OnActivated(func(b *tui.Button) {
-			if (strings.Compare(password1.Text(), password2.Text()) == 0 && strings.Compare(password1.Text(), "") != 0) {
-				status.SetText("Passwords match! Master password successfully set.\n Press Esc to exit command window.")
-				valid = true
-			} else {
-				status.SetText("Passwords do not match. Please try again.")
-				valid = false
-			}
-		})
-	
-		buttons := tui.NewHBox(
-			tui.NewSpacer(),
-			tui.NewPadder(1, 0, enter),
-		)
-	
-		window := tui.NewVBox(
-			tui.NewPadder(0, 0, tui.NewLabel("Set Master Password : Please enter and confirm the Master Password\n")),
-			tui.NewPadder(1, 1, form),
-			buttons,
-		)
-		window.SetBorder(true)
-	
-		wrapper := tui.NewVBox(
-			tui.NewSpacer(),
-			window,
-			tui.NewSpacer(),
-		)
-		content := tui.NewHBox(tui.NewSpacer(), wrapper, tui.NewSpacer())
-	
-		root := tui.NewVBox(
-			content,
-			status,
-		)
-	
-		tui.DefaultFocusChain.Set(password1, password2, enter)
-	
-		ui := tui.New(root)
-		ui.SetKeybinding("Esc", func() { ui.Quit() })
-	
-		if err := ui.Run(); err != nil {
-			panic(err)
-		}
+	valid = false
+	password1 := tui.NewEntry()
+	password1.SetFocused(true)
+	password1.OnChanged(func(e *tui.Entry) {
+		input := e.Text()
 		
-		if(strings.Compare(password1.Text(), password2.Text()) == 0 && strings.Compare(password1.Text(), "") != 0) {
+		masterPasswordInput, hiddenPassword1 = updateHiddenPassword(hide, input, masterPasswordInput, hiddenPassword1)
+
+		if (hide) { 
+			password1.SetText(hiddenPassword1) 
+		} else { 
+			password1.SetText(masterPasswordInput) 
+		}
+	})
+
+	password2 := tui.NewEntry()
+	password2.OnChanged(func(e *tui.Entry) {
+		input := e.Text()
+		
+		masterPasswordConfirm, hiddenPassword2 = updateHiddenPassword(hide, input, masterPasswordConfirm, hiddenPassword2)
+	
+		if(hide) { 
+			password2.SetText(hiddenPassword2) 
+		} else { 
+			password2.SetText(masterPasswordConfirm) 
+		} 
+	})
+
+	hideButton := tui.NewButton("[Hide / Unhide]")
+	hideButton.OnActivated(func(b *tui.Button) {
+		hide = !hide
+		
+		if(hide) { 
+			password1.SetText(hiddenPassword1)
+			password2.SetText(hiddenPassword2) 
+		} else { 
+			password1.SetText(masterPasswordInput)
+			password2.SetText(masterPasswordConfirm) 
+		}
+	})
+
+	form := tui.NewGrid(0, 0)
+	form.AppendRow(tui.NewLabel("Master Password : "), tui.NewLabel("Confirm Master Password : "))
+	form.AppendRow(password1, password2)
+
+	status := tui.NewStatusBar("Ready.")
+	usage := tui.NewStatusBar("USAGE : [Enter] - Check status of entered passwords. || [Hide/Unhide] - Hide/Unhide passwords || PRESS [Esc] - Exit Command Window")
+
+	enter := tui.NewButton("[Enter]")
+	enter.OnActivated(func(b *tui.Button) {
+		if (strings.Compare(password1.Text(), password2.Text()) == 0 && strings.Compare(password1.Text(), "") != 0) {
+			status.SetText("Passwords match! Master password successfully set.\n Press Esc to exit command window.")
 			valid = true
 		} else {
+			status.SetText("Passwords do not match. Please try again.")
 			valid = false
 		}
+	})
 
-		return
+	buttons := tui.NewHBox(
+		tui.NewSpacer(),
+		tui.NewPadder(1, 0, enter),
+		tui.NewPadder(1, 0, hideButton),
+	)
+
+	window := tui.NewVBox(
+		tui.NewPadder(0, 0, tui.NewLabel("Set Master Password : Please enter and confirm the Master Password\n")),
+		tui.NewPadder(1, 1, form),
+		buttons,
+	)
+	window.SetBorder(true)
+
+	wrapper := tui.NewVBox(
+		tui.NewSpacer(),
+		window,
+		tui.NewSpacer(),
+	)
+	content := tui.NewHBox(tui.NewSpacer(), wrapper, tui.NewSpacer())
+
+	root := tui.NewVBox(
+		content,
+		status,
+		usage,
+	)
+
+	tui.DefaultFocusChain.Set(password1, password2, enter, hideButton)
+
+	ui := tui.New(root)
+	ui.SetKeybinding("Esc", func() { ui.Quit() })
+
+	if err := ui.Run(); err != nil {
+		panic(err)
+	}
+	
+	if(strings.Compare(password1.Text(), password2.Text()) == 0 && strings.Compare(password1.Text(), "") != 0) {
+		valid = true
+	} else {
+		valid = false
 	}
 
+	return
+}
+
 func createAddCommandTextUI() (passwordInput, commentInput string){
+
+	var hiddenPassword string
+	hide := true
 
 	password := tui.NewEntry()
 	password.SetFocused(true)
 	password.OnChanged(func(e *tui.Entry) {
-		passwordInput = e.Text()
+		input := e.Text()
+		
+		passwordInput, hiddenPassword = updateHiddenPassword(hide, input, passwordInput, hiddenPassword)
+
+		if(hide) { 
+			password.SetText(hiddenPassword) 
+		} else { 
+			password.SetText(passwordInput) 
+		}
 	})
 
 	comment := tui.NewEntry()
@@ -870,11 +882,24 @@ func createAddCommandTextUI() (passwordInput, commentInput string){
 		commentInput = e.Text()
 	})
 
+	hideButton := tui.NewButton("[Hide / Unhide]")
+	hideButton.OnActivated(func(b *tui.Button) {
+		hide = !hide
+		
+		if(hide) { 
+			password.SetText(hiddenPassword)
+		} else { 
+			password.SetText(passwordInput)
+		}
+	})
+
 	form := tui.NewGrid(0, 0)
 	form.AppendRow(tui.NewLabel("Password"), tui.NewLabel("Comment"))
 	form.AppendRow(password, comment)
 
 	status := tui.NewStatusBar("Ready.")
+	usage := tui.NewStatusBar("USAGE : [Enter] - Check status of entered password and comment. || [Hide/Unhide] - Hide/Unhide password || PRESS [Esc] - Exit Command Window")
+	
 
 	enter := tui.NewButton("[Enter]")
 	enter.OnActivated(func(b *tui.Button) {
@@ -884,6 +909,7 @@ func createAddCommandTextUI() (passwordInput, commentInput string){
 	buttons := tui.NewHBox(
 		tui.NewSpacer(),
 		tui.NewPadder(1, 0, enter),
+		tui.NewPadder(1, 0, hideButton),
 	)
 
 	window := tui.NewVBox(
@@ -903,9 +929,10 @@ func createAddCommandTextUI() (passwordInput, commentInput string){
 	root := tui.NewVBox(
 		content,
 		status,
+		usage,
 	)
 
-	tui.DefaultFocusChain.Set(password, comment, enter)
+	tui.DefaultFocusChain.Set(password, comment, enter, hideButton)
 
 	ui := tui.New(root)
 	ui.SetKeybinding("Esc", func() { ui.Quit() })
@@ -1041,7 +1068,6 @@ func createShowPasswordTextUI(maxEntryNum int) (entryText string){
 	return
 }
 
-
 func createShowPasswordResultTextUI(entry int, passwordText string) {
 	password := tui.NewLabel(passwordText)
 	
@@ -1093,6 +1119,10 @@ func createShowPasswordResultTextUI(entry int, passwordText string) {
 }
 
 func createChangePasswordTextUI(maxEntryNum int) (entryText string, newPassword string){
+	
+	var hiddenPassword string
+	hide := true
+
 	entry := tui.NewEntry()
 	entry.SetFocused(true)
 	entry.OnChanged(func(e *tui.Entry) {
@@ -1102,7 +1132,16 @@ func createChangePasswordTextUI(maxEntryNum int) (entryText string, newPassword 
 	password := tui.NewEntry()
 	// password.SetFocused(true)
 	password.OnChanged(func(e *tui.Entry) {
-		newPassword = e.Text()
+		input := e.Text()
+		
+		newPassword, hiddenPassword = updateHiddenPassword(hide, input, newPassword, hiddenPassword)	
+
+		if(hide) { 
+			password.SetText(hiddenPassword) 
+		} else { 
+			password.SetText(newPassword) 
+		}
+		
 	})
 
 	form := tui.NewGrid(0, 0)
@@ -1110,7 +1149,8 @@ func createChangePasswordTextUI(maxEntryNum int) (entryText string, newPassword 
 	form.AppendRow(entry, password)
 
 	status := tui.NewStatusBar("Ready.")
-
+	usage := tui.NewStatusBar("USAGE : [Enter] - Check status of entered password and entry number. || [Hide/Unhide] - Hide/Unhide password || PRESS [Esc] - Exit Command Window")
+	
 	enter := tui.NewButton("[Enter]")
 	enter.OnActivated(func(b *tui.Button) {
 		num, err := strconv.Atoi(entryText)
@@ -1124,9 +1164,21 @@ func createChangePasswordTextUI(maxEntryNum int) (entryText string, newPassword 
 		}
 	})
 
+	hideButton := tui.NewButton("[Hide / Unhide]")
+	hideButton.OnActivated(func(b *tui.Button) {
+		hide = !hide
+		
+		if(hide) { 
+			password.SetText(hiddenPassword)
+		} else { 
+			password.SetText(newPassword)
+		}
+	})
+
 	buttons := tui.NewHBox(
 		tui.NewSpacer(),
 		tui.NewPadder(1, 0, enter),
+		tui.NewPadder(1, 0, hideButton),
 	)
 
 	window := tui.NewVBox(
@@ -1146,15 +1198,142 @@ func createChangePasswordTextUI(maxEntryNum int) (entryText string, newPassword 
 	root := tui.NewVBox(
 		content,
 		status,
+		usage,
 	)
 
-	tui.DefaultFocusChain.Set(entry, password, enter)
+	tui.DefaultFocusChain.Set(entry, password, enter, hideButton)
 
 	ui := tui.New(root)
 	ui.SetKeybinding("Esc", func() { ui.Quit() })
 
 	if err := ui.Run(); err != nil {
 		panic(err)
+	}
+
+	return
+}
+
+func updateHiddenPassword(hide bool, input, password, hiddenPassword string) (string, string){
+	if (hide) {
+		if (len(hiddenPassword) > len(input)) {
+			password = password[:len(input)]
+			hiddenPassword = hiddenPassword[:len(input)]
+		} else {
+			for _, char := range input {
+				if (char != '*') {
+					password += string(char)
+					hiddenPassword += string("*")
+				}
+			}
+		}
+	} else {
+		if (len(password) > len(input)) {
+			password = input
+			hiddenPassword = hiddenPassword[:len(input)]
+		} else {
+			password = input
+			hiddenPassword += string("*")
+		}
+	}
+
+	return password, hiddenPassword
+}
+
+func createCheckMasterPasswordTextUI(expectedMasterPassword string) (masterPasswordInput string, valid bool){
+	
+	var hiddenPassword string
+	hide := true
+	valid = false
+	password1 := tui.NewEntry()
+	password1.SetFocused(true)
+	password1.OnChanged(func(e *tui.Entry) {
+		input := e.Text()
+		for _, char := range input {
+			if (char != '*') {
+				masterPasswordInput += string(char)
+				hiddenPassword += string("*")
+				if len(hiddenPassword) > len(input) {
+					masterPasswordInput = masterPasswordInput[:len(input)]
+					hiddenPassword = hiddenPassword[:len(input)]
+				}
+
+				if(hide) { 
+					password1.SetText(hiddenPassword) 
+				} else { 
+					password1.SetText(masterPasswordInput) 
+				} 
+			}
+		}
+	})
+
+	form := tui.NewGrid(0, 0)
+	form.AppendRow(tui.NewLabel("Master Password : "))
+	form.AppendRow(password1)
+
+	status := tui.NewStatusBar("Ready.")
+	usage := tui.NewStatusBar("USAGE : [Enter] - Check status of entered password. || [Hide/Unhide] - Hide/Unhide master password || PRESS [Esc] - Exit Command Window")
+
+	enter := tui.NewButton("[Enter]")
+	enter.OnActivated(func(b *tui.Button) {
+		if (strings.Compare(password1.Text(), expectedMasterPassword) == 0) {
+			status.SetText("Correct Password!\n Press Esc to exit command window.")
+			valid = true
+		} else {
+			status.SetText("Incorrect Password. Please try again.")
+			valid = false
+		}
+	})
+
+	hideButton := tui.NewButton("[Hide / Unhide]")
+	hideButton.OnActivated(func(b *tui.Button) {
+		hide = !hide
+		
+		if(hide) { 
+			password1.SetText(hiddenPassword) 
+		} else { 
+			password1.SetText(masterPasswordInput) 
+		}
+	})
+
+	buttons := tui.NewHBox(
+		tui.NewSpacer(),
+		tui.NewPadder(1, 0, enter),
+		tui.NewPadder(1, 0, hideButton),
+	)
+
+	window := tui.NewVBox(
+		tui.NewPadder(0, 0, tui.NewLabel("Authenticate User : Please enter the Master Password\n")),
+		tui.NewPadder(1, 1, form),
+		buttons,
+	)
+	window.SetBorder(true)
+
+	wrapper := tui.NewVBox(
+		tui.NewSpacer(),
+		window,
+		tui.NewSpacer(),
+	)
+	content := tui.NewHBox(tui.NewSpacer(), wrapper, tui.NewSpacer())
+
+	root := tui.NewVBox(
+		content,
+		status,
+		usage,
+	)
+
+	tui.DefaultFocusChain.Set(password1, enter, hideButton)
+
+	ui := tui.New(root)
+	ui.SetKeybinding("Esc", func() { ui.Quit() })
+
+	if err := ui.Run(); err != nil {
+		panic(err)
+	}
+	
+	if(strings.Compare(password1.Text(), expectedMasterPassword) == 0) {
+		valid = true
+	} else {
+		valid = false
 	}
 
 	return
