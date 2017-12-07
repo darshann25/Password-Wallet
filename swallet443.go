@@ -31,6 +31,7 @@ import (
 	"strconv"
 	"errors"
 	"github.com/marcusolsson/tui-go"
+	//"regexp"
 	
 	// There will likely be several mode APIs you need
 )
@@ -271,6 +272,8 @@ func (wal443 wallet) saveWallet() (*wallet, bool) {
 		// aesPassword := string(walEntry.salt) + "||" + string(walEntry.password)
 		// aesBase64Password := base64.URLEncoding.EncodeToString([]byte(aesPassword))
 
+		// fmt.Println(len([]byte(aesPassword)))
+
 		data := entryString + "||" + aesPassword + "||" + string(walEntry.comment) + "\n"
 		// fmt.Println(data)
 
@@ -320,7 +323,6 @@ func (wal443 wallet) processWalletCommand(command string) (*wallet, bool) {
 
 	case "reset":
 		wal443, _ = wal443.resetPassword()
-		// fmt.Printf("New Password : %s\n", string(wal443.masterPassword))
 		break
 
 	case "list":
@@ -665,10 +667,29 @@ func createMAC(data, masterkey[] byte) (hMAC []byte) {
 
 func createGetMasterPasswordTextUI() (masterPasswordInput string){
 
+		var hiddenPassword string
+		hide := true
+
 		password1 := tui.NewEntry()
 		password1.SetFocused(true)
 		password1.OnChanged(func(e *tui.Entry) {
-			masterPasswordInput = e.Text()
+			input := e.Text()
+			for _, char := range input {
+				if (char != '*') {
+					masterPasswordInput += string(char)
+					hiddenPassword += string("*")
+					if len(hiddenPassword) > len(input) {
+						masterPasswordInput = masterPasswordInput[:len(input)]
+						hiddenPassword = hiddenPassword[:len(input)]
+					}
+
+					if(hide) { 
+						password1.SetText(hiddenPassword) 
+					} else { 
+						password1.SetText(masterPasswordInput) 
+					} 
+				}
+			}
 		})
 	
 		form := tui.NewGrid(0, 0)
@@ -676,15 +697,28 @@ func createGetMasterPasswordTextUI() (masterPasswordInput string){
 		form.AppendRow(password1)
 	
 		status := tui.NewStatusBar("Ready.")
+		usage := tui.NewStatusBar("USAGE : [Enter] - Check status of entered password. || [Hide/Unhide] - Hide/Unhide master password || PRESS [Esc] - Exit Command Window")
 	
 		enter := tui.NewButton("[Enter]")
 		enter.OnActivated(func(b *tui.Button) {
-			status.SetText("Thank you for entering the password.\nPress Esc to exit command window.")
+			status.SetText("Thank you for entering the password.\n Press [Esc] to exit command window.")
 		})
 	
+		hideButton := tui.NewButton("[Hide / Unhide]")
+		hideButton.OnActivated(func(b *tui.Button) {
+			hide = !hide
+			
+			if(hide) { 
+				password1.SetText(hiddenPassword) 
+			} else { 
+				password1.SetText(masterPasswordInput) 
+			}
+		})
+
 		buttons := tui.NewHBox(
 			tui.NewSpacer(),
 			tui.NewPadder(1, 0, enter),
+			tui.NewPadder(1, 0, hideButton),
 		)
 	
 		window := tui.NewVBox(
@@ -704,9 +738,10 @@ func createGetMasterPasswordTextUI() (masterPasswordInput string){
 		root := tui.NewVBox(
 			content,
 			status,
+			usage,
 		)
 	
-		tui.DefaultFocusChain.Set(password1, enter)
+		tui.DefaultFocusChain.Set(password1, enter, hideButton)
 	
 		ui := tui.New(root)
 		ui.SetKeybinding("Esc", func() { ui.Quit() })
