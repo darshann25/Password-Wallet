@@ -4,8 +4,12 @@
 //  Description    : This is the implementaiton file for the swallet password
 //                   wallet program program.  See assignment details.
 //
-//  Collaborators  : **TODO**: FILL ME IN
-//  Last Modified  : **TODO**: FILL ME IN
+//  Collaborators  : Darshan Patel - ddp5131
+//		     Rex Li - rjl5401
+//		     Justin Dillman - jnd5215
+//		     Raj Desai - rad5434
+//		     Aditya Agarwal - aaa6026
+//  Last Modified  : Dec 7, 2017 - 03:34am
 //
 
 // Package statement
