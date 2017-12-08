@@ -64,13 +64,13 @@ where:
     <wallet-file> - wallet file to manage (without ".txt" appended)
 	[create|add|del|show|chpw] - is a command to execute, where
 
-     create - create a new wallet file
-     add - adds a password to the wallet
-     del - deletes a password from the wallet
-     show - show a password in the wallet
-     chpw - changes the password for an entry in the wallet
-     reset - changes the password for the wallet
-     list - list the entries in the wallet (without passwords)`
+     	create - create a new wallet file
+     	add - adds a password to the wallet
+     	del - deletes a password from the wallet
+     	show - show a password in the wallet
+     	chpw - changes the password for an entry in the wallet
+     	reset - changes the password for the wallet
+     	list - list the entries in the wallet (without passwords)`
 
 var verbose bool = true
 
@@ -92,7 +92,7 @@ const ENTRY_BYTE_SIZE int = 32
 // Inputs       : none
 // Outputs      : none
 func walletUsage() {
-	fmt.Fprintf(os.Stderr, "%s\n\n", usageText)
+	fmt.Fprintf(os.Stderr, "\n%s\n\n", usageText)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -143,7 +143,11 @@ func loadWallet(filename string) *wallet {
 	wal443.masterPassword = []byte(masterPassword)
 
 	data, err := ioutil.ReadFile(wal443.filename + ".txt")
-	check(err)
+	if err != nil {
+		fmt.Println("\nPlease enter valid existing filename or create the file. Follow Usage instructions.")
+		getopt.Usage()
+		os.Exit(-1)
+	}
 
 	lines := strings.Split(string(data), "\n")
 	numLines := len(lines) - 1
@@ -199,7 +203,7 @@ func loadWallet(filename string) *wallet {
 		}
 	} else {
 
-		fmt.Println("Incorrect Master Password. Unauthorized User.")
+		fmt.Println("\nIncorrect Master Password. Unauthorized User.")
 		os.Exit(-1)
 
 	}
