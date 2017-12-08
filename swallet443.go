@@ -36,11 +36,8 @@ import (
 	"errors"
 	"github.com/marcusolsson/tui-go"
 	
-	// There will likely be several mode APIs you need
 )
-import crand "crypto/rand"
-
-// Type definition  ** YOU WILL NEED TO ADD TO THESE **
+import crand "crypto/rand"	// this kept clashing with math/rand
 
 // A single password
 type walletEntry struct {
@@ -62,9 +59,9 @@ var usageText string = `USAGE: swallet443 [-h] [-v] <wallet-file> [create|add|de
 
 where:
     -h - help mode (display this message)
-    -v - enable verbose output
+    -v - enable verbose output (prints debugging flags)
 
-    <wallet-file> - wallet file to manage
+    <wallet-file> - wallet file to manage (without ".txt" appended)
 	[create|add|del|show|chpw] - is a command to execute, where
 
      create - create a new wallet file
@@ -83,10 +80,9 @@ const COMMENT_BYTE_SIZE int = 128
 const SALT_BYTE_SIZE int = 16
 const ENTRY_BYTE_SIZE int = 32
 
-//
-// Functions
-
-// Up to you to decide which functions you want to add
+/////////////////////
+///// Functions /////
+/////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -95,7 +91,6 @@ const ENTRY_BYTE_SIZE int = 32
 //
 // Inputs       : none
 // Outputs      : none
-
 func walletUsage() {
 	fmt.Fprintf(os.Stderr, "%s\n\n", usageText)
 }
@@ -107,7 +102,6 @@ func walletUsage() {
 //
 // Inputs       : filename - the name of the wallet file
 // Outputs      : the wallet if created, nil otherwise
-
 func createWallet(filename string) *wallet {
 
 	// Setup the wallet
@@ -116,10 +110,10 @@ func createWallet(filename string) *wallet {
 	wal443.masterPassword = make([]byte, 32, 32) // You need to take it from here
 	wal443.genNum = 0
 
-	//temp - Needs UI
-	//wal443.masterPassword = []byte("12345")
+	// Setup the TextUI for the getting the master password
 	masterPassword, valid := createSetMasterPasswordTextUI()
 	
+	// check validity of the master password
 	if(valid) {
 		wal443.masterPassword = []byte(masterPassword)
 	} else {
@@ -127,7 +121,7 @@ func createWallet(filename string) *wallet {
 		os.Exit(-1)
 	}
 
-	// Return the wall
+	// Return the wallet
 	return &wal443
 }
 
@@ -138,25 +132,13 @@ func createWallet(filename string) *wallet {
 //
 // Inputs       : filename - the name of the wallet file
 // Outputs      : the wallet if created, nil otherwise
-
 func loadWallet(filename string) *wallet {
 
 	// Setup the wallet
 	var wal443 wallet 
-	// DO THE LOADING HERE
 	wal443.filename = filename
 
-	// temp - Need UI
-	// wal443.masterPassword = []byte("12345")
-	
-	/*
-	_, valid := createCheckMasterPasswordTextUI(string(wal443.masterPassword))
-	
-	if(valid == false) {
-		fmt.Println("Incorrect Master Password. Unauthorized User.")
-		os.Exit(-1)
-	}
-	*/
+	// Create the UI to verify the master password for access control
 	masterPassword := createGetMasterPasswordTextUI()
 	wal443.masterPassword = []byte(masterPassword)
 
@@ -173,8 +155,10 @@ func loadWallet(filename string) *wallet {
 		_, err := buffer.WriteString(lines[i] + "\n")
 		check(err)
 	}
+
+	// Create wk from the first 16 bytes of the master password
 	hashedPassword := getSHA1Hash(wal443.masterPassword)
-	walletKey := truncateStringToBytes(hashedPassword, 16)
+	walletKey := truncateBytes(hashedPassword, 16)
 
 	hmac, err := base64.URLEncoding.DecodeString(lines[numLines - 1])
 	check(err)
@@ -203,7 +187,7 @@ func loadWallet(filename string) *wallet {
 			walEntry.comment = []byte(comment)
 
 			// decrypt saltyPassword
-			saltyPassword, err := aes_decrypt(walletKey, aes_saltyPassword)
+			saltyPassword, err := aesDecrypt(walletKey, aes_saltyPassword)
 			check(err)
 
 			saltyPasswordArr := strings.Split(saltyPassword, "||")
@@ -220,10 +204,6 @@ func loadWallet(filename string) *wallet {
 
 	}
 
-	//for index, value := range wal443.passwords {
-	//	fmt.Printf("index : %d || password : %s\n", index, string(value.password))
-	//}
-
 	// Return the wall	
 	return &wal443	
 }
@@ -235,7 +215,6 @@ func loadWallet(filename string) *wallet {
 //
 // Inputs       : walletFile - the name of the wallet file
 // Outputs      : true if successful test, false if failure
-
 func (wal443 wallet) saveWallet() (*wallet, bool) {
 
 	wal443.genNum += 1
@@ -244,25 +223,10 @@ func (wal443 wallet) saveWallet() (*wallet, bool) {
 	buffer := bytes.NewBuffer([]byte(data))
 	
 	hashedPassword := getSHA1Hash(wal443.masterPassword)
-	walletKey := truncateStringToBytes(hashedPassword, 16)
+	walletKey := truncateBytes(hashedPassword, 16)
 	
 	for index, walEntry := range wal443.passwords {
 		
-		// Entry : PADDING IS INCONSISTENT WITH SCHEMA
-		/*
-		entryBytes := []byte("Entry " + strconv.Itoa(index + 1))
-		buff := bytes.NewBuffer(entryBytes)		
-		if buff.Len() < ENTRY_BYTE_SIZE { 
-			padding := ENTRY_BYTE_SIZE - buff.Len()
-			for i := 0; i < padding ; i++ {
-				_, err := buff.WriteString("\x00")
-				check(err)
-			} 
-			entryString = buff.String()
-		} else {
-			entryString = truncateStringToBytes(entryBytes, ENTRY_BYTE_SIZE)
-		}
-		*/
 		entryString := "Entry " + strconv.Itoa(index + 1)
 		buff := bytes.NewBuffer([]byte(entryString))
 		if buff.Len() > ENTRY_BYTE_SIZE { buff.Truncate(ENTRY_BYTE_SIZE) }
@@ -270,21 +234,17 @@ func (wal443 wallet) saveWallet() (*wallet, bool) {
 
 
 		// AES Encryption
-		aesPassword, pass_err := aes_encrypt(walletKey, string(walEntry.salt) + "||" + string(walEntry.password))
+		aesPassword, pass_err := aesEncrypt(walletKey, string(walEntry.salt) + "||" + string(walEntry.password))
 		check(pass_err)
-		// aesPassword := string(walEntry.salt) + "||" + string(walEntry.password)
-		// aesBase64Password := base64.URLEncoding.EncodeToString([]byte(aesPassword))
-
-		// fmt.Println(len([]byte(aesPassword)))
-
+		
 		data := entryString + "||" + aesPassword + "||" + string(walEntry.comment) + "\n"
-		// fmt.Println(data)
-
+		
 		_, err := buffer.WriteString(data)
 		check(err)
 		
 	}
 
+	// Create HMAC using wk created generated earlier
 	hmac := createMAC(buffer.Bytes(), walletKey)
 	hmacString := base64.URLEncoding.EncodeToString(hmac)
 	buffer.WriteString(hmacString + "\n")
@@ -303,32 +263,43 @@ func (wal443 wallet) saveWallet() (*wallet, bool) {
 // Inputs       : walletFile - the name of the wallet file
 //                command - the command to execute
 // Outputs      : true if successful test, false if failure
-
 func (wal443 wallet) processWalletCommand(command string) (*wallet, bool) {
 
 	// Process the command 
 	switch command {
 	case "add":
+		// Adds new password to the wallet
+		// Uses TextUI
 		wal443 = wal443.addPassword()
 		break
 
 	case "del":
+		// Deletes password from the wallet
+		// Uses TextUI
 		wal443 = wal443.deletePassword()
 		break
 		
 	case "show":
+		// Shows password from the wallet
+		// Uses TextUI
 		wal443.showPassword()
 		break
 		
 	case "chpw":
+		// Changes password in the wallet
+		// Uses TextUI
 		wal443.changePassword()
 		break
 
 	case "reset":
+		// Resets master password for the wallet
+		// Uses TextUI
 		wal443, _ = wal443.resetPassword()
 		break
 
 	case "list":
+		// Lists password entry numbers and comments from the wallet
+		// Uses Command Line
 		wal443.listPassword()
 		break
 
@@ -342,149 +313,9 @@ func (wal443 wallet) processWalletCommand(command string) (*wallet, bool) {
 	return &wal443, true
 }
 
-func (wal443 wallet) addPassword() wallet{
-	
-	password, comment := createAddCommandTextUI()
-
-	var walEntry walletEntry
-	buff := bytes.NewBuffer([]byte(password))
-	
-	// Password
-	if buff.Len() < PASSWORD_BYTE_SIZE { 
-		padding := PASSWORD_BYTE_SIZE - buff.Len()
-		for i := 0; i < padding ; i++ {
-			_, err := buff.WriteString("\x00")
-			check(err)
-		} 
-	}
-	walEntry.password = buff.Bytes()
-
-	// Comment : PADDING IS INCONSISTENT WITH SCHEMA
-	/*
-	buff = bytes.NewBuffer([]byte(comment))
-	if buff.Len() < COMMENT_BYTE_SIZE { 
-		padding := COMMENT_BYTE_SIZE - buff.Len()
-		for i := 0; i < padding ; i++ {
-			_, err := buff.WriteString("\x00")
-			check(err)
-		} 
-	}*/
-	buff = bytes.NewBuffer([]byte(comment))
-	if buff.Len() > COMMENT_BYTE_SIZE { buff.Truncate(COMMENT_BYTE_SIZE) }
-	walEntry.comment = buff.Bytes()
-	
-	// Salt
-	saltBytes := make([]byte, SALT_BYTE_SIZE)
-    if _, err := rand.Read(saltBytes); err != nil {
-        panic(err)
-	}
-	// s := fmt.Sprintf("%X", saltBytes)
-	walEntry.salt = saltBytes
-	
-	// Add wallEntry to Passwords
-	wal443.passwords = append(wal443.passwords, walEntry)
-	return wal443
-}
-
-func (wal443 wallet) deletePassword() (wallet) {
-	
-	entryNum := createDeleteCommandTextUI()
-	// buff := bytes.NewBuffer([]byte(entryNum))
-	
-	/*
-	// Password
-	if buff.Len() < PASSWORD_BYTE_SIZE { 
-		padding := PASSWORD_BYTE_SIZE - buff.Len()
-		for i := 0; i < padding ; i++ {
-			_, err := buff.WriteString("\x00")
-			check(err)
-		} 
-	}
-
-	delPassword := buff.Bytes()
-
-	// remove walletEntry associated with password
-	for index, walEntry := range wal443.passwords {
-		if bytes.Equal(walEntry.password, delPassword) {
-			wal443.passwords = append(wal443.passwords[:index], wal443.passwords[index + 1 :]...)
-			break
-		}
-	}*/
-
-	index := entryNum - 1
-	if(index >=0 && index < len(wal443.passwords)) {
-		wal443.passwords = append(wal443.passwords[:index], wal443.passwords[index + 1 :]...)
-	} else {
-		fmt.Println("Invalid Entry Number. Delete failed!")
-		os.Exit(-1)
-	}
-
-	return wal443
-}
-
-func (wal443 wallet) showPassword() bool {
-	
-		maxEntryNum := len(wal443.passwords)
-		entryText := createShowPasswordTextUI(maxEntryNum)
-		entry, err := strconv.Atoi(entryText)
-		check(err)
-	
-		if(entry > 0 && entry <= maxEntryNum) {
-			createShowPasswordResultTextUI(entry, string(wal443.passwords[entry - 1].password))
-		} else {
-			fmt.Println("Incorrect entry number requested. Please use list command to find the entry number.")
-			os.Exit(-1)
-		}
-
-		return true
-	}
-
-func (wal443 wallet) listPassword() bool{
-	
-		for i := 0; i < len(wal443.passwords); i++ {
-	
-			fmt.Printf("Entry : %d || Comment : %s \n", i + 1, wal443.passwords[i].comment)
-		}
-	
-		return true
-	}
-func (wal443 wallet) changePassword() bool{
-	
-	maxEntryNum := len(wal443.passwords)
-	
-	entryText, newPassword := createChangePasswordTextUI(maxEntryNum)
-	entry, err := strconv.Atoi(entryText)
-	check(err)
-	//perhaps the UI interface needs to be called here
-
-	if(entry > 0 && entry <= maxEntryNum && newPassword != "") {
-		wal443.passwords[entry - 1].password = []byte(newPassword)
-	} else if (newPassword == ""){
-		fmt.Println("Password is an invalid empty string. Please enter a valid password.")
-	} else {
-		fmt.Println("Incorrect entry number requested. Please use list command to find the entry number.")
-		os.Exit(-1)
-	}
-	
-
-	return true
-	}	
-
-func (wal443 wallet) resetPassword() (wallet, bool){
-	
-		masterPassword, valid := createSetMasterPasswordTextUI()
-		
-		if(valid) {
-			// fmt.Printf("Old Password : %s\n", string(wal443.masterPassword))
-			wal443.masterPassword = []byte(masterPassword)
-			// fmt.Printf("New Password : %s\n", masterPassword)
-		} else {
-			fmt.Println("Master password incorrectly set.\nPlease reset the password again.")
-			os.Exit(-1)
-		}
-	
-		return wal443, valid
-	}
+/////////////////////
+///// 	Main   //////
+/////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -493,7 +324,6 @@ func (wal443 wallet) resetPassword() (wallet, bool){
 //
 // Inputs       : none
 // Outputs      : 0 if successful test, -1 if failure
-
 func main() {
 
 	// Setup options for the program content
@@ -511,31 +341,30 @@ func main() {
 		os.Exit(-1)
 	}
 
+
 	// Process the flags
-	fmt.Printf("help flag [%t]\n", *helpflag)
-	fmt.Printf("verbose flag [%t]\n", *verboseflag)
-	verbose = *verboseflag
+	if (*verboseflag) {
+		fmt.Printf("\nhelp flag [%t]\n", *helpflag)
+		fmt.Printf("verbose flag [%t]\n", *verboseflag)
+		verbose = *verboseflag
+
+		// Check the arguments to make sure we have enough, process if OK
+		if getopt.NArgs() < 2 {
+			fmt.Printf("Not enough arguments for wallet operation.\n")
+			getopt.Usage()
+			os.Exit(0)
+		}
+		fmt.Printf("wallet file [%s]\n", getopt.Arg(0))
+		fmt.Printf("command [%s]\n\n", getopt.Arg(1))
+	}
+
 	if *helpflag == true {
 		getopt.Usage()
-		os.Exit(-1)
+		os.Exit(0)
 	}
-
-	// Check the arguments to make sure we have enough, process if OK
-	if getopt.NArgs() < 2 {
-		fmt.Printf("Not enough arguments for wallet operation.\n")
-		getopt.Usage()
-		os.Exit(-1)
-	}
-	fmt.Printf("wallet file [%s]\n", getopt.Arg(0))
+	
 	filename := getopt.Arg(0)
-	fmt.Printf("command [%s]\n", getopt.Arg(1))
 	command := strings.ToLower(getopt.Arg(1))
-
-	//fmt.Printf("password [%s]\n", getopt.Arg(2))
-	//password := strings.ToLower(getopt.Arg(2))
-
-	//fmt.Printf("comment [%s]\n", getopt.Arg(3))
-	//comment := getopt.Arg(3)
 
 	// Now check if we are creating a wallet
 	var ok bool
@@ -570,16 +399,205 @@ func main() {
 	return
 }
 
+////////////////////////////
+///// Helper Functions /////
+////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : addPassword
+// Description  : The addPassword helper function encapsulates the functionality
+//				  of adding password and comment to the wallet structure (through the TextUI)
+//
+// Inputs       : none
+// Outputs      : updated wallet, if successful
+func (wal443 wallet) addPassword() wallet{
+	
+	password, comment := createAddCommandTextUI()
+
+	var walEntry walletEntry
+	buff := bytes.NewBuffer([]byte(password))
+	
+	// Password
+	if buff.Len() < PASSWORD_BYTE_SIZE { 
+		padding := PASSWORD_BYTE_SIZE - buff.Len()
+		for i := 0; i < padding ; i++ {
+			_, err := buff.WriteString("\x00")
+			check(err)
+		} 
+	}
+	walEntry.password = buff.Bytes()
+
+	buff = bytes.NewBuffer([]byte(comment))
+	if buff.Len() > COMMENT_BYTE_SIZE { buff.Truncate(COMMENT_BYTE_SIZE) }
+	walEntry.comment = buff.Bytes()
+	
+	// Salt
+	saltBytes := make([]byte, SALT_BYTE_SIZE)
+    if _, err := rand.Read(saltBytes); err != nil {
+        panic(err)
+	}
+	// s := fmt.Sprintf("%X", saltBytes)
+	walEntry.salt = saltBytes
+	
+	// Add wallEntry to Passwords
+	wal443.passwords = append(wal443.passwords, walEntry)
+	return wal443
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : deletePassword
+// Description  : The deletePassword helper function encapsulates the functionality
+//				  of deleting a password from the wallet structure based on the 
+//				  entry number requested by the user (through the TextUI)
+//
+// Inputs       : none
+// Outputs      : updated wallet, if successful
+func (wal443 wallet) deletePassword() (wallet) {
+	
+	maxEntryNum := len(wal443.passwords)
+	entryNum := createDeleteCommandTextUI(maxEntryNum)
+
+	index := entryNum - 1
+	if(index >=0 && index < len(wal443.passwords)) {
+		wal443.passwords = append(wal443.passwords[:index], wal443.passwords[index + 1 :]...)
+	} else {
+		fmt.Println("Invalid Entry Number. Delete failed!")
+		os.Exit(-1)
+	}
+
+	return wal443
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : showPassword
+// Description  : The showPassword helper function encapsulates the functionality
+//				  of displaying a requested password from the wallet structure 
+//				  based on the entry number (on the TextUI)
+//
+// Inputs       : none
+// Outputs      : bool true, if successful
+func (wal443 wallet) showPassword() bool {
+
+	maxEntryNum := len(wal443.passwords)
+	entryText := createShowPasswordTextUI(maxEntryNum)
+	entry, err := strconv.Atoi(entryText)
+	check(err)
+
+	if(entry > 0 && entry <= maxEntryNum) {
+		createShowPasswordResultTextUI(entry, string(wal443.passwords[entry - 1].password))
+	} else {
+		fmt.Println("Incorrect entry number requested. Please use list command to find the entry number.")
+		os.Exit(-1)
+	}
+
+	return true
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : listPassword
+// Description  : The listPassword helper function encapsulates the functionality
+//				  of listing the password entry numbers and comments from the 
+//				  wallet structure (ON THE COMMANDLINE)
+//
+// Inputs       : none
+// Outputs      : bool true, if successful	
+func (wal443 wallet) listPassword() bool{
+	
+	fmt.Println("\nList of Passwords:")
+	for i := 0; i < len(wal443.passwords); i++ {
+		fmt.Printf("Entry : %d || Comment : %s \n", i + 1, wal443.passwords[i].comment)
+	}
+	fmt.Println()
+
+		return true
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : changePassword
+// Description  : The changePassword helper function encapsulates the functionality
+//				  of changing the password in the wallet structure based on the entry
+//				  number requested by the user (through the TextUI)
+//
+// Inputs       : none
+// Outputs      : bool true, if successful
+func (wal443 wallet) changePassword() bool{
+	
+	maxEntryNum := len(wal443.passwords)
+	
+	entryText, newPassword := createChangePasswordTextUI(maxEntryNum)
+	entry, err := strconv.Atoi(entryText)
+	check(err)
+	
+	if(entry > 0 && entry <= maxEntryNum && newPassword != "") {
+		wal443.passwords[entry - 1].password = []byte(newPassword)
+	} else if (newPassword == ""){
+		fmt.Println("Password is an invalid empty string. Please enter a valid password.")
+	} else {
+		fmt.Println("Incorrect entry number requested. Please use list command to find the entry number.")
+		os.Exit(-1)
+	}
+	
+
+	return true
+}	
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : resetPassword
+// Description  : The resetPassword helper function encapsulates the functionality
+//				  of reseting the master password for the wallet structure 
+//				  (through the TextUI)
+//
+// Inputs       : none
+// Outputs      : updated wallet, if successful
+//				  bool true, if successful
+func (wal443 wallet) resetPassword() (wallet, bool){
+	
+	masterPassword, valid := createSetMasterPasswordTextUI()
+	
+	if(valid) {
+		// fmt.Printf("Old Password : %s\n", string(wal443.masterPassword))
+		wal443.masterPassword = []byte(masterPassword)
+		// fmt.Printf("New Password : %s\n", masterPassword)
+	} else {
+		fmt.Println("Master password incorrectly set.\nPlease reset the password again.")
+		os.Exit(-1)
+	}
+
+	return wal443, valid
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : check
+// Description  : The check helper function checks errors
+//
+// Inputs       : error e
+// Outputs      : none
 func check(e error) {
     if e != nil {
         panic(e)
     }
 }
 
-func truncateStringToBytes(data []byte, numBytes int) []byte {
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : truncateBytes
+// Description  : The truncateBytes truncates the byte input to numBytes number of
+//				  of bytes. This is used to truncate the master password
+//
+// Inputs       : []byte data - data that needs to truncated
+//				  int numBytes - number of the bytes the data needs to be truncated to
+// Outputs      : []byte - truncated data
+func truncateBytes(data []byte, numBytes int) []byte {
 	
 	buff := bytes.NewBuffer([]byte(data))
-	if buff.Len() > numBytes { buff.Truncate(numBytes) }// keep first numBytes and discard the rest
+	if buff.Len() > numBytes { buff.Truncate(numBytes) } // keep first numBytes and discard the rest
 	
 	if buff.Len() < numBytes { 
 		padding := numBytes - buff.Len()
@@ -588,25 +606,45 @@ func truncateStringToBytes(data []byte, numBytes int) []byte {
 			check(err)
 		} 
 	}
-	// fmt.Printf("truncateStringToBytes : %d\n", buff.Len())
 	
 	return buff.Bytes()
 	
 }
 
+/////////////////////////////////////////
+///// Cryptography Helper Functions /////
+/////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : getSHA1Hash
+// Description  : The getSHA1Hash generates and returns the SHA1 Hash of the 
+//				  data provided
+//
+// Inputs       : []byte data - data that needs to hashed
+// Outputs      : []byte - hashed data
 func getSHA1Hash(data []byte) []byte {
 	hasher := sha1.New()
 	hasher.Write(data)
 	result := hasher.Sum(nil)
 
-	// fmt.Println(data)
-	// fmt.Printf("%x\n", result)
-
 	return result
 }
 
-// Reference - https://gist.github.com/mickelsonm/e1bf365a149f3fe59119
-func aes_encrypt(key []byte, message string) (result string, err error) {
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : aesEncrypt
+// Description  : The aesEncrypt function generates the AES Encryption of the 
+//				  salt appended password passed in as the input. The salt is
+//				  used as the initialization vector. The encrypted password
+//				  is base64 encoded.
+//
+// Inputs       : []byte key - 128-bit key (wallet key) used for encryption
+//				  string message - data that needs to be encrypted
+// Outputs      : string result - AES encrypted data
+//				  error err - error if anything goes wrong
+// Reference 	: https://gist.github.com/mickelsonm/e1bf365a149f3fe59119
+func aesEncrypt(key []byte, message string) (result string, err error) {
 	plainText := []byte(message)
 
 	block, err := aes.NewCipher(key)
@@ -627,8 +665,20 @@ func aes_encrypt(key []byte, message string) (result string, err error) {
 	return
 }
 
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : aesDecrypt
+// Description  : The aesDecrypt function performs the AES Decryption of the 
+//				  AES encrypted password passed in as the input. The salt is
+//				  used as the initialization vector. The encrypted password
+//				  is first base64 decoded.
+//
+// Inputs       : []byte key - 128-bit key (wallet key) used for decryption
+//				  string encmessage - data that needs to be decrypted
+// Outputs      : string result - AES decrypted data
+//				  error err - error if anything goes wrong
 // Reference - https://gist.github.com/mickelsonm/e1bf365a149f3fe59119
-func aes_decrypt(key []byte, encmessage string) (result string, err error) {
+func aesDecrypt(key []byte, encmessage string) (result string, err error) {
 	cipherText, err := base64.URLEncoding.DecodeString(encmessage)
 	check(err)
 
@@ -651,8 +701,34 @@ func aes_decrypt(key []byte, encmessage string) (result string, err error) {
 	return
 }
 
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : createMAC
+// Description  : The createMAC function creates the HMAC for the passed in data
+//				  with the 128-bit key (wallet key)
+//
+// Inputs       : []byte key - 128-bit key (wallet key) used for generating HMAC
+//				  []byte data - data that needs to be HMACed
+// Outputs      : []byte data - HMACed data
+func createMAC(data, masterkey[] byte) (hMAC []byte) {
+	mac := hmac.New(sha256.New, masterkey)
+	mac.Write(data)
+	hMAC = mac.Sum(nil)
+	return
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : checkMAC
+// Description  : The checkMAC function generates the HMAC value of the data
+//				  passed in with the 128-bit key. This value is compared with
+//				  HMACed value at the end of each wallet.
+//
+// Inputs       : []byte key - 128-bit key (wallet key) used for generating HMAC
+//				  []byte message - data that needs to be HMACed
+//				  []byte messageMAC - HMACed data that needs to compared with
+// Outputs      : bool - true is HMACs are equal
 // Reference - https://golang.org/pkg/crypto/hmac/
-// CheckMAC reports whether messageMAC is a valid HMAC tag for message.
 func checkMAC(message, messageMAC, key []byte) bool {
 	mac := hmac.New(sha256.New, key)
 	mac.Write(message)
@@ -661,13 +737,19 @@ func checkMAC(message, messageMAC, key []byte) bool {
 	return hmac.Equal(messageMAC, expectedMAC)
 }
 
-func createMAC(data, masterkey[] byte) (hMAC []byte) {
-	mac := hmac.New(sha256.New, masterkey)
-	mac.Write(data)
-	hMAC = mac.Sum(nil)
-	return
-}
+/////////////////////////////////////////
+////////// UI Helper Functions //////////
+/////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : createGetMasterPasswordTextUI
+// Description  : The createGetMasterPasswordTextUI function encapsulates the UI
+//				  functionality for requesting the master password for verifying
+//				  the identity of the user of the wallet.
+//
+// Inputs       : none
+// Outputs		: string master password - the password the user inputs
 func createGetMasterPasswordTextUI() (masterPasswordInput string){
 
 	var hiddenPassword string
@@ -746,8 +828,18 @@ func createGetMasterPasswordTextUI() (masterPasswordInput string){
 	}
 
 	return
-	}
+}
 
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : createSetMasterPasswordTextUI
+// Description  : The createSetMasterPasswordTextUI function encapsulates the UI
+//				  functionality for reseting the master password and confirming it
+//				  by checking if they are equal.
+//
+// Inputs       : none
+// Outputs		: string master password - the password the user inputs
+//				  bool valid - true if the passwords match
 func createSetMasterPasswordTextUI() (masterPasswordInput string, valid bool){
 	
 	var hiddenPassword1 string
@@ -858,6 +950,16 @@ func createSetMasterPasswordTextUI() (masterPasswordInput string, valid bool){
 	return
 }
 
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : createAddCommandTextUI
+// Description  : The createAddCommandTextUI function encapsulates the UI
+//				  functionality for requesting the password and the comment to be 
+//				  added to the wallet as a wallet entry.
+//
+// Inputs       : none
+// Outputs		: string password - the password the user inputs
+//				  string comment - the comment the user inputs
 func createAddCommandTextUI() (passwordInput, commentInput string){
 
 	var hiddenPassword string
@@ -944,7 +1046,16 @@ func createAddCommandTextUI() (passwordInput, commentInput string){
 	return
 }
 
-func createDeleteCommandTextUI() (entryNum int) {
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : createDeletCommandTextUI
+// Description  : The createDeletCommandTextUI function encapsulates the UI
+//				  functionality for requesting the entry number of the password that
+//				  the user wants to delete. It checks the validity of the entry number.
+//
+// Inputs       : int max entry number - used to check the validity of the input entry number
+// Outputs		: int entry number - the entry number the user inputs
+func createDeleteCommandTextUI(maxEntryNum int) (entryNum int) {
 	
 	entry := tui.NewEntry()
 	entry.SetFocused(true)
@@ -962,7 +1073,13 @@ func createDeleteCommandTextUI() (entryNum int) {
 
 	enter := tui.NewButton("[Enter]")
 	enter.OnActivated(func(b *tui.Button) {
-		status.SetText("Entry number successfully recorded.\n Press Esc to exit command window.")
+		num := entryNum
+
+		if(num > 0 && num <= maxEntryNum) {
+			status.SetText("Valid entry number requested.\n Press Esc to exit command window.")
+		} else {
+			status.SetText("Invalid entry number requested. Please use list command to check entry numbers\n")
+		}
 	})
 	help := tui.NewButton("[Help]")
 	help.OnActivated(func(b *tui.Button) {
@@ -1007,6 +1124,15 @@ func createDeleteCommandTextUI() (entryNum int) {
 	return
 }
 
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : createShowPasswordTextUI
+// Description  : The createShowPasswordTextUI function encapsulates the UI
+//				  functionality for taking in the entry number of the password
+//				  the user wants to see. It checks the validity of the entry number.
+//
+// Inputs       : int max entry number - used to check the validity of the input entry number
+// Outputs		: int entry number text - the entry number the user inputs
 func createShowPasswordTextUI(maxEntryNum int) (entryText string){
 	entry := tui.NewEntry()
 	entry.SetFocused(true)
@@ -1068,6 +1194,15 @@ func createShowPasswordTextUI(maxEntryNum int) (entryText string){
 	return
 }
 
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : createShowPasswordResultTextUI
+// Description  : The createShowPasswordResultTextUI function encapsulates the UI
+//				  functionality for displaying the password the user requested.
+//
+// Inputs       : int entry number - used to display the password entry number to the user
+//				  int password - used to display the password to the user
+// Outputs		: none
 func createShowPasswordResultTextUI(entry int, passwordText string) {
 	password := tui.NewLabel(passwordText)
 	
@@ -1118,6 +1253,16 @@ func createShowPasswordResultTextUI(entry int, passwordText string) {
 	return
 }
 
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : createChangePasswordTextUI
+// Description  : The createChangePasswordTextUI function encapsulates the UI
+//				  functionality for taking in the entry number for changing the
+//				  password in the wallet structure. It check the validity of the entry number.
+//
+// Inputs       : int max entry number - used to check the validity of the input entry number
+// Outputs		: int entry number text - the entry number the user inputs
+//				  string password - the new password the user inputs
 func createChangePasswordTextUI(maxEntryNum int) (entryText string, newPassword string){
 	
 	var hiddenPassword string
@@ -1213,6 +1358,19 @@ func createChangePasswordTextUI(maxEntryNum int) (entryText string, newPassword 
 	return
 }
 
+////////////////////////////////////////////////////////////////////////////////
+//
+// Function     : updateHiddenPasswordTextUI
+// Description  : The updateHiddenPasswordTextUI function is called by the above UI Helper
+//				  Functions for updating the password and hiddenPassword strings for the
+//				  Hide/Unhide functionality for passwords
+//
+// Inputs       : bool hide - true if the hiddenPassword is being displayed, false otherwise
+//				  string input - the input the user provides. Could partially be * characters of the hiddenPassword
+//				  string password - the actual password that needs to be updated
+//				  string hiddenPassword - the hidden password that needs to be updated
+// Outputs		: string password - updated password, if successful
+//				  string hiddenPassword - updated hidden passwrod, if successful
 func updateHiddenPassword(hide bool, input, password, hiddenPassword string) (string, string){
 	if (hide) {
 		if (len(hiddenPassword) > len(input)) {
@@ -1239,6 +1397,16 @@ func updateHiddenPassword(hide bool, input, password, hiddenPassword string) (st
 	return password, hiddenPassword
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// (Deprecated)
+// Function     : createCheckMasterPasswordTextUI
+// Description  : The createCheckMasterPasswordTextUI function encapsulates the UI
+//				  functionality for checking the master password the user inputs
+//				  matches the master password stored in the wallet structure.
+//
+// Inputs       : string expected master password - the master password stored in the wallet structure
+// Outputs		: string master password - the master password that the user inputs
+//				  bool valid - true if the passwords match
 func createCheckMasterPasswordTextUI(expectedMasterPassword string) (masterPasswordInput string, valid bool){
 	
 	var hiddenPassword string
