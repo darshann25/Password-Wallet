@@ -91,7 +91,6 @@ const ENTRY_BYTE_SIZE int = 32
 //
 // Inputs       : none
 // Outputs      : none
-
 func walletUsage() {
 	fmt.Fprintf(os.Stderr, "%s\n\n", usageText)
 }
@@ -103,7 +102,6 @@ func walletUsage() {
 //
 // Inputs       : filename - the name of the wallet file
 // Outputs      : the wallet if created, nil otherwise
-
 func createWallet(filename string) *wallet {
 
 	// Setup the wallet
@@ -134,7 +132,6 @@ func createWallet(filename string) *wallet {
 //
 // Inputs       : filename - the name of the wallet file
 // Outputs      : the wallet if created, nil otherwise
-
 func loadWallet(filename string) *wallet {
 
 	// Setup the wallet
@@ -218,7 +215,6 @@ func loadWallet(filename string) *wallet {
 //
 // Inputs       : walletFile - the name of the wallet file
 // Outputs      : true if successful test, false if failure
-
 func (wal443 wallet) saveWallet() (*wallet, bool) {
 
 	wal443.genNum += 1
@@ -231,21 +227,6 @@ func (wal443 wallet) saveWallet() (*wallet, bool) {
 	
 	for index, walEntry := range wal443.passwords {
 		
-		// Entry : PADDING IS INCONSISTENT WITH SCHEMA
-		/*
-		entryBytes := []byte("Entry " + strconv.Itoa(index + 1))
-		buff := bytes.NewBuffer(entryBytes)		
-		if buff.Len() < ENTRY_BYTE_SIZE { 
-			padding := ENTRY_BYTE_SIZE - buff.Len()
-			for i := 0; i < padding ; i++ {
-				_, err := buff.WriteString("\x00")
-				check(err)
-			} 
-			entryString = buff.String()
-		} else {
-			entryString = truncateStringToBytes(entryBytes, ENTRY_BYTE_SIZE)
-		}
-		*/
 		entryString := "Entry " + strconv.Itoa(index + 1)
 		buff := bytes.NewBuffer([]byte(entryString))
 		if buff.Len() > ENTRY_BYTE_SIZE { buff.Truncate(ENTRY_BYTE_SIZE) }
@@ -282,7 +263,6 @@ func (wal443 wallet) saveWallet() (*wallet, bool) {
 // Inputs       : walletFile - the name of the wallet file
 //                command - the command to execute
 // Outputs      : true if successful test, false if failure
-
 func (wal443 wallet) processWalletCommand(command string) (*wallet, bool) {
 
 	// Process the command 
@@ -344,7 +324,6 @@ func (wal443 wallet) processWalletCommand(command string) (*wallet, bool) {
 //
 // Inputs       : none
 // Outputs      : 0 if successful test, -1 if failure
-
 func main() {
 
 	// Setup options for the program content
